@@ -6,6 +6,12 @@ export const PATHS = {
   employee: '/employee',
   hr: '/hr',
   admin: '/admin',
+  employees: '/admin/employees',
+  addEmployee: '/admin/employees/new',
+  employeeDetails: (id: string) => `/admin/employees/${id}`,
+  employeeDetailsPattern: '/admin/employees/:id',
+  editEmployee: (id: string) => `/admin/employees/${id}/edit`,
+  editEmployeePattern: '/admin/employees/:id/edit',
   unauthorized: '/unauthorized',
 } as const;
 

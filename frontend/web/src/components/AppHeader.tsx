@@ -28,7 +28,7 @@ export function AppHeader({ title, subtitle, showLogo = true }: Props) {
           >
             <GroupsIcon sx={{ color: '#fff' }} />
           </Box>
-          <Typography variant="h6" fontWeight={700}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
             {COMPANY_NAME}
           </Typography>
         </Box>

@@ -7,6 +7,10 @@ import HrHomePage from '../pages/HrHomePage';
 import LoginPage from '../pages/LoginPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import UnauthorizedPage from '../pages/UnauthorizedPage';
+import EmployeeListPage from '../features/employees/pages/EmployeeListPage';
+import EmployeeDetailsPage from '../features/employees/pages/EmployeeDetailsPage';
+import AddEmployeePage from '../features/employees/pages/AddEmployeePage';
+import EditEmployeePage from '../features/employees/pages/EditEmployeePage';
 import { GuestRoute } from './GuestRoute';
 import { PATHS, homePathForUser } from './paths';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -40,6 +44,14 @@ export function AppRoutes() {
         </Route>
         <Route element={<RoleBasedRoute allowedRoles={['ADMIN']} />}>
           <Route path={PATHS.admin} element={<AdminHomePage />} />
+        </Route>
+
+        {/* Employee Management accessible by both ADMIN and HR roles */}
+        <Route element={<RoleBasedRoute allowedRoles={['ADMIN', 'HR']} />}>
+          <Route path={PATHS.employees} element={<EmployeeListPage />} />
+          <Route path={PATHS.addEmployee} element={<AddEmployeePage />} />
+          <Route path={PATHS.employeeDetailsPattern} element={<EmployeeDetailsPage />} />
+          <Route path={PATHS.editEmployeePattern} element={<EditEmployeePage />} />
         </Route>
       </Route>
 

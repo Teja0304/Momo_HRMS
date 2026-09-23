@@ -14,6 +14,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   /** One-off message to show after a redirect (e.g. "session expired"). */
   notice: string | null;
+  setNotice: (notice: string | null) => void;
   clearNotice: () => void;
   login: (email: string, password: string) => Promise<void>;
   resetPassword: (newPassword: string) => Promise<void>;
@@ -133,13 +134,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearNotice = useCallback(() => setNotice(null), []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, notice, clearNotice, login, resetPassword, logout }),
-    [status, user, notice, clearNotice, login, resetPassword, logout],
+    () => ({ status, user, notice, setNotice, clearNotice, login, resetPassword, logout }),
+    [status, user, notice, setNotice, clearNotice, login, resetPassword, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (!context) {

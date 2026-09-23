@@ -29,3 +29,5 @@ main().catch((error) => {
   logger.error({ err: error }, 'Employee Service failed to start');
   process.exit(1);
 });
+// Trigger reload with updated CORS origins
+

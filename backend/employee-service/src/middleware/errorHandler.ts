@@ -2,6 +2,7 @@ import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 import { AppError } from '../utils/errors';
+import { logger } from '../lib/logger';
 
 /** Unknown URL -> 404 in our normal error format. */
 export const notFoundHandler: RequestHandler = (req, res) => {
@@ -72,6 +73,6 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     return;
   }
 
-  req.log.error({ err }, 'Unhandled error');
+  logger.error({ err }, 'Unhandled error');
   send(res, 500, 'INTERNAL_ERROR', 'Something went wrong on the server');
 };
