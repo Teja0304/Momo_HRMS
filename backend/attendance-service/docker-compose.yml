@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  attendance-service:
+    build: .
+    container_name: attendance-service
+    restart: unless-stopped
+    ports:
+      - '3002:3002'
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql://attendance_user:attendance_password@mysql:3306/attendance_service
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - attendance-net
+
+  mysql:
+    image: mysql:8.0
+    container_name: attendance-service-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: attendance_service
+      MYSQL_USER: attendance_user
+      MYSQL_PASSWORD: attendance_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - '3307:3306'
+    volumes:
+      - attendance_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-proot_password']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - attendance-net
+
+  # Optional. The basic attendance flow does not require Redis.
+  redis:
+    image: redis:7-alpine
+    container_name: attendance-service-redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+    networks:
+      - attendance-net
+
+volumes:
+  attendance_mysql_data:
+
+networks:
+  attendance-net:
+    driver: bridge

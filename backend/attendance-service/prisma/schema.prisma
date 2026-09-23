@@ -1,0 +1,169 @@
+// Attendance Service - Prisma schema
+//
+// Owns ONLY attendance business-logic tables. Does NOT own users,
+// passwords, roles, permissions, employee profiles, departments, face
+// data, notifications, or office/geofence master data — those belong to
+// other microservices. employeeId/officeId/userId are stored as opaque
+// external references (no DB foreign keys to tables this service does
+// not own), per the architecture rule in the spec.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum AttendanceStatus {
+  WORKING
+  PAUSED
+  CHECKED_OUT
+}
+
+enum CheckInStatus {
+  ON_TIME
+  LATE
+  EXCEPTION
+}
+
+enum CheckoutType {
+  MANUAL
+  AUTO
+  ADMIN
+}
+
+enum CheckoutReason {
+  USER_CHECKOUT
+  GEOFENCE_TIMEOUT
+  ADMIN_ACTION
+  SYSTEM_ACTION
+}
+
+enum PauseEndReason {
+  RETURNED
+  AUTO_CHECKOUT
+}
+
+enum AttendanceEventType {
+  CHECK_IN
+  GEOFENCE_EXIT
+  GEOFENCE_RETURN
+  CHECK_OUT
+  AUTO_CHECKOUT
+  ATTENDANCE_REJECTED
+}
+
+enum AttendanceEventSource {
+  ONLINE
+  OFFLINE_SYNC
+  SYSTEM
+  ADMIN
+}
+
+/// One working day's attendance is tracked as one or more sessions.
+/// An employee may have several sessions on the same attendanceDate
+/// (e.g. after an auto-checkout + an HR-authorized re-check-in), but
+/// never more than one ACTIVE (WORKING or PAUSED) session at a time —
+/// enforced in application logic, not a DB constraint, because MySQL
+/// has no native partial/filtered unique index. See EmployeeAttendanceLock.
+model AttendanceSession {
+  id             String           @id @default(uuid())
+  employeeId     String           @map("employee_id") @db.VarChar(64)
+  officeId       String           @map("office_id") @db.VarChar(64)
+  attendanceDate DateTime         @map("attendance_date") @db.Date
+  status         AttendanceStatus @default(WORKING)
+
+  checkInAt  DateTime  @map("check_in_at")
+  checkOutAt DateTime? @map("check_out_at")
+
+  checkInStatus CheckInStatus @map("check_in_status")
+
+  currentPauseStartedAt DateTime? @map("current_pause_started_at")
+  currentGraceDeadline  DateTime? @map("current_grace_deadline")
+
+  checkoutType   CheckoutType?
+  checkoutReason CheckoutReason? @map("checkout_reason")
+
+  totalWorkingSeconds Int @default(0) @map("total_working_seconds")
+
+  // Set when this session exists because an earlier session on the same
+  // attendanceDate was already CHECKED_OUT (e.g. re-check-in after an
+  // auto-checkout). Null for a day's first session. See spec §3 and the
+  // HR-exception TODO in README — V1 has no approval workflow yet, so
+  // this is always null in V1, but the column and audit event exist so
+  // the Employee/HR service can wire an approval flow in later without
+  // a schema change.
+  reopenReason      String? @map("reopen_reason") @db.VarChar(255)
+  reopenAuthorizedBy String? @map("reopen_authorized_by") @db.VarChar(64)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  pauses AttendancePause[]
+  events AttendanceEvent[]
+
+  @@index([employeeId])
+  @@index([attendanceDate])
+  @@index([status])
+  @@index([currentGraceDeadline])
+  @@index([employeeId, attendanceDate])
+  @@map("attendance_sessions")
+}
+
+model AttendancePause {
+  id                   String    @id @default(uuid())
+  attendanceSessionId  String    @map("attendance_session_id")
+  startedAt            DateTime  @map("started_at")
+  endedAt              DateTime? @map("ended_at")
+  durationSeconds      Int?      @map("duration_seconds")
+  graceDeadline        DateTime  @map("grace_deadline")
+  endReason            PauseEndReason? @map("end_reason")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  session AttendanceSession @relation(fields: [attendanceSessionId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceSessionId])
+  @@map("attendance_pauses")
+}
+
+/// Immutable event/history log. Never updated after creation.
+/// clientEventId is the idempotency key for mobile-originated events.
+model AttendanceEvent {
+  id                  String                @id @default(uuid())
+  attendanceSessionId String?               @map("attendance_session_id")
+  employeeId          String                @map("employee_id") @db.VarChar(64)
+  clientEventId       String                @unique @map("client_event_id") @db.VarChar(128)
+  eventType           AttendanceEventType   @map("event_type")
+  eventTime           DateTime              @map("event_time")
+
+  latitude       Float?  
+  longitude      Float?
+  altitudeMeters Float?  @map("altitude_meters")
+  accuracyMeters Float?  @map("accuracy_meters")
+
+  source   AttendanceEventSource @default(ONLINE)
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session AttendanceSession? @relation(fields: [attendanceSessionId], references: [id], onDelete: SetNull)
+
+  @@index([attendanceSessionId])
+  @@index([employeeId])
+  @@index([eventTime])
+  @@map("attendance_events")
+}
+
+/// Not a business entity — a per-employee "ticket" row used purely so a
+/// check-in transaction can issue `SELECT ... FOR UPDATE` against a
+/// single row per employee, serializing concurrent check-in attempts
+/// for the same employee without needing Redis or a distributed lock.
+/// See AttendanceService.checkIn / EmployeeAttendanceLockService.
+model EmployeeAttendanceLock {
+  employeeId String   @id @map("employee_id") @db.VarChar(64)
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("employee_attendance_locks")
+}
