@@ -1,0 +1,184 @@
+// Employee Management Service - Prisma schema (database: momo_hrms)
+//
+// This service owns: departments, roles, employees, employee_devices,
+// face_template_references and audit_logs.
+//
+// The auth-service owns users/passwords in its OWN database (auth_service).
+// Because the databases are separate, employees.user_id is a plain column
+// (the id of the auth-service user) and NOT a database foreign key.
+
+generator client {
+  provider   = "prisma-client-js"
+  // "client" = Prisma's Rust-free query engine. It is used together with the
+  // MariaDB/MySQL driver adapter (see src/lib/prisma.ts).
+  engineType = "client"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum DepartmentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum DeviceType {
+  ANDROID
+  IOS
+  WEB
+  OTHER
+}
+
+enum DeviceStatus {
+  ACTIVE
+  INACTIVE
+  REVOKED
+}
+
+enum TemplateStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+model Department {
+  id          String           @id @default(uuid()) @db.VarChar(36)
+  name        String           @unique @db.VarChar(100)
+  code        String           @unique @db.VarChar(20)
+  description String?          @db.VarChar(500)
+  status      DepartmentStatus @default(ACTIVE)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  employees Employee[]
+
+  @@index([status])
+  @@map("departments")
+}
+
+// Mirrors the role names issued by the auth-service (EMPLOYEE, HR_ADMIN,
+// SUPER_ADMIN). The auth-service stays the source of truth for login roles.
+model Role {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  name        String   @unique @db.VarChar(64)
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  employees Employee[]
+
+  @@map("roles")
+}
+
+model Employee {
+  id                 String           @id @default(uuid()) @db.VarChar(36)
+  // id of the matching auth-service user (optional, unique). NOT a foreign key.
+  userId             String?          @unique @map("user_id") @db.VarChar(36)
+  employeeCode       String           @unique @map("employee_code") @db.VarChar(30)
+  firstName          String           @map("first_name") @db.VarChar(100)
+  lastName           String           @map("last_name") @db.VarChar(100)
+  email              String           @unique @db.VarChar(255)
+  phone              String           @db.VarChar(30)
+  dateOfBirth        DateTime?        @map("date_of_birth") @db.Date
+  gender             Gender?
+  address            String?          @db.VarChar(500)
+  profilePhotoUrl    String?          @map("profile_photo_url") @db.VarChar(500)
+  dateOfJoining      DateTime         @map("date_of_joining") @db.Date
+  jobTitle           String           @map("job_title") @db.VarChar(150)
+  departmentId       String           @map("department_id") @db.VarChar(36)
+  roleId             String           @map("role_id") @db.VarChar(36)
+  status             EmploymentStatus @default(ACTIVE)
+  // Filled when the employee becomes INACTIVE or TERMINATED, cleared on reactivation.
+  deactivatedAt      DateTime?        @map("deactivated_at")
+  deactivationReason String?          @map("deactivation_reason") @db.VarChar(500)
+  deactivatedBy      String?          @map("deactivated_by") @db.VarChar(36)
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  department    Department              @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  role          Role                    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  devices       EmployeeDevice[]
+  faceTemplates FaceTemplateReference[]
+
+  @@index([departmentId])
+  @@index([roleId])
+  @@index([status])
+  @@index([lastName, firstName])
+  @@map("employees")
+}
+
+model EmployeeDevice {
+  id               String       @id @default(uuid()) @db.VarChar(36)
+  employeeId       String       @map("employee_id") @db.VarChar(36)
+  deviceName       String       @map("device_name") @db.VarChar(100)
+  deviceType       DeviceType   @map("device_type")
+  // A public installation/hardware id. NEVER a password or secret token.
+  deviceIdentifier String       @unique @map("device_identifier") @db.VarChar(255)
+  status           DeviceStatus @default(ACTIVE)
+  registeredAt     DateTime     @default(now()) @map("registered_at")
+  lastSeenAt       DateTime?    @map("last_seen_at")
+  revokedAt        DateTime?    @map("revoked_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, status])
+  @@index([status])
+  @@map("employee_devices")
+}
+
+// Metadata ONLY. The biometric template itself lives in the external
+// biometric/attendance system and is never stored or returned here.
+model FaceTemplateReference {
+  id                  String         @id @default(uuid()) @db.VarChar(36)
+  employeeId          String         @map("employee_id") @db.VarChar(36)
+  externalReferenceId String         @map("external_reference_id") @db.VarChar(255)
+  provider            String         @db.VarChar(100)
+  status              TemplateStatus @default(ACTIVE)
+  enrolledAt          DateTime       @default(now()) @map("enrolled_at")
+  expiresAt           DateTime?      @map("expires_at")
+  revokedAt           DateTime?      @map("revoked_at")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, externalReferenceId])
+  @@index([employeeId, status])
+  @@map("face_template_references")
+}
+
+// Append-only history of important changes (who did what, and when).
+// `metadata` never contains passwords, tokens or biometric data.
+model AuditLog {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  actorUserId String?  @map("actor_user_id") @db.VarChar(36)
+  action      String   @db.VarChar(64)
+  entityType  String   @map("entity_type") @db.VarChar(32)
+  entityId    String   @map("entity_id") @db.VarChar(36)
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

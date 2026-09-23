@@ -1,0 +1,380 @@
+openapi: 3.0.3
+info:
+  title: Momo HRMS - Employee Management Service
+  version: "1.0.0"
+  description: >
+    Manages employees, departments, roles, devices and face-template
+    references for the Momo HRMS Admin portal. Authentication reuses the
+    existing auth-service JWTs.
+servers:
+  - url: http://localhost:5000/api/v1
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    internalApiKey:
+      type: apiKey
+      in: header
+      name: X-Internal-Api-Key
+  schemas:
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: {}
+    PageMeta:
+      type: object
+      properties:
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
+        totalPages: { type: integer }
+    Department:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        code: { type: string }
+        description: { type: string, nullable: true }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        employeeCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Role:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        employeeCount: { type: integer }
+    Employee:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        employeeCode: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        dateOfBirth: { type: string, format: date, nullable: true }
+        gender: { type: string, nullable: true, enum: [MALE, FEMALE, OTHER, PREFER_NOT_TO_SAY] }
+        address: { type: string, nullable: true }
+        profilePhotoUrl: { type: string, nullable: true }
+        dateOfJoining: { type: string, format: date }
+        jobTitle: { type: string }
+        department: { $ref: '#/components/schemas/Department' }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { type: string, enum: [ACTIVE, INACTIVE, ON_LEAVE, SUSPENDED, TERMINATED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    EmployeeDevice:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        employeeId: { type: string, format: uuid }
+        deviceName: { type: string }
+        deviceType: { type: string, enum: [ANDROID, IOS, WEB, OTHER] }
+        deviceIdentifier: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE, REVOKED] }
+        registeredAt: { type: string, format: date-time }
+        lastSeenAt: { type: string, format: date-time, nullable: true }
+    FaceTemplateReference:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        employeeId: { type: string, format: uuid }
+        externalReferenceId: { type: string }
+        provider: { type: string }
+        status: { type: string, enum: [ACTIVE, REVOKED, EXPIRED] }
+        enrolledAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, nullable: true }
+  parameters:
+    idParam:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    NotFound:
+      description: Not found
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Unauthorized:
+      description: Missing or invalid access token
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: Authenticated but not allowed to perform this action
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: Conflicts with an existing record or invalid state transition
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+security:
+  - bearerAuth: []
+paths:
+  /employees:
+    get:
+      tags: [Employees]
+      summary: List employees (search, filter, paginate)
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: departmentId, in: query, schema: { type: string, format: uuid } }
+        - { name: roleId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Page of employees
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { type: array, items: { $ref: '#/components/schemas/Employee' } }
+                  meta: { $ref: '#/components/schemas/PageMeta' }
+    post:
+      tags: [Employees]
+      summary: Create an employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employeeCode, firstName, lastName, email, phone, dateOfJoining, jobTitle, departmentId, roleId]
+              properties:
+                employeeCode: { type: string, example: EMP-0004 }
+                firstName: { type: string, example: Priya }
+                lastName: { type: string, example: Sharma }
+                email: { type: string, example: priya.sharma@momo-hrms.example }
+                phone: { type: string, example: "+91 98765 43213" }
+                dateOfJoining: { type: string, example: "2026-01-05" }
+                jobTitle: { type: string, example: QA Engineer }
+                departmentId: { type: string, format: uuid }
+                roleId: { type: string, format: uuid }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { type: object, properties: { success: { type: boolean }, data: { $ref: '#/components/schemas/Employee' } } } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /employees/{id}:
+    get:
+      tags: [Employees]
+      summary: Get an employee by id
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Employees]
+      summary: Update employee information
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      requestBody:
+        content: { application/json: { schema: { type: object } } }
+      responses:
+        '200': { description: Updated }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /employees/{id}/status:
+    patch:
+      tags: [Employees]
+      summary: Change employment status (deactivate / reactivate / suspend / etc.)
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [ACTIVE, INACTIVE, ON_LEAVE, SUSPENDED, TERMINATED] }
+                reason: { type: string }
+      responses:
+        '200': { description: Updated }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /employees/{id}/profile:
+    get:
+      tags: [Employees]
+      summary: Full employee profile (department, role, devices, face-template status)
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      responses:
+        '200': { description: OK }
+  /employees/{id}/devices:
+    get:
+      tags: [Devices]
+      summary: List an employee's devices
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      responses:
+        '200': { description: OK }
+    post:
+      tags: [Devices]
+      summary: Register a device for an employee
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceName, deviceType, deviceIdentifier]
+              properties:
+                deviceName: { type: string, example: "Priya's Pixel 8" }
+                deviceType: { type: string, enum: [ANDROID, IOS, WEB, OTHER] }
+                deviceIdentifier: { type: string, example: "a1b2c3d4-device-hash" }
+      responses:
+        '201': { description: Created }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /employees/{id}/face-template:
+    get:
+      tags: [Face Templates]
+      summary: Get an employee's face-template reference status
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      responses:
+        '200': { description: OK }
+    post:
+      tags: [Face Templates]
+      summary: Register (or replace) a face-template reference
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [externalReferenceId, provider]
+              properties:
+                externalReferenceId: { type: string }
+                provider: { type: string, example: "BioSecure Attendance" }
+                expiresAt: { type: string, format: date-time }
+      responses:
+        '201': { description: Created }
+  /employees/{id}/role:
+    patch:
+      tags: [Roles]
+      summary: Change an employee's role
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [roleId], properties: { roleId: { type: string, format: uuid } } } } }
+      responses:
+        '200': { description: Updated }
+  /departments:
+    get:
+      tags: [Departments]
+      summary: List departments
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Departments]
+      summary: Create a department
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, code]
+              properties:
+                name: { type: string, example: Finance }
+                code: { type: string, example: FIN }
+                description: { type: string }
+      responses:
+        '201': { description: Created }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /departments/{id}:
+    get:
+      tags: [Departments]
+      summary: Get a department by id
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/NotFound' } }
+    put:
+      tags: [Departments]
+      summary: Update a department
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      requestBody: { content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: Updated } }
+  /departments/{id}/status:
+    patch:
+      tags: [Departments]
+      summary: Activate or deactivate a department
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [ACTIVE, INACTIVE] }, reason: { type: string } } } } }
+      responses:
+        '200': { description: Updated }
+        '409': { description: "Department still has active employees", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /departments/{id}/employees:
+    get:
+      tags: [Departments]
+      summary: List employees in a department
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      responses: { '200': { description: OK } }
+  /roles:
+    get:
+      tags: [Roles]
+      summary: List roles
+      responses: { '200': { description: OK } }
+  /roles/{id}:
+    get:
+      tags: [Roles]
+      summary: Get a role by id
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      responses: { '200': { description: OK } }
+  /devices/{id}:
+    get:
+      tags: [Devices]
+      summary: Get a device by id
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      responses: { '200': { description: OK } }
+    patch:
+      tags: [Devices]
+      summary: Update device information
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      requestBody: { content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: Updated } }
+  /devices/{id}/status:
+    patch:
+      tags: [Devices]
+      summary: Activate, deactivate or revoke a device
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [ACTIVE, INACTIVE, REVOKED] } } } } }
+      responses: { '200': { description: Updated } }
+  /face-templates/{id}/status:
+    patch:
+      tags: [Face Templates]
+      summary: Change a face-template reference's status
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [ACTIVE, REVOKED, EXPIRED] } } } } }
+      responses: { '200': { description: Updated } }
+  /face-templates/{id}:
+    delete:
+      tags: [Face Templates]
+      summary: Revoke a face-template reference (soft delete, audit history kept)
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      responses: { '200': { description: Revoked } }
+  /internal/employees/{id}/attendance-eligibility:
+    get:
+      tags: [Attendance Integration]
+      summary: Minimal eligibility check used by the attendance service
+      security: [{ internalApiKey: [] }]
+      parameters: [{ $ref: '#/components/parameters/idParam' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      employeeId: { type: string, format: uuid }
+                      status: { type: string }
+                      isEligibleForAttendance: { type: boolean }
+                      hasActiveDevice: { type: boolean }
+                      hasActiveFaceTemplate: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
