@@ -45,6 +45,7 @@ export function EmployeeForm({
     firstName: initialValues?.firstName ?? '',
     lastName: initialValues?.lastName ?? '',
     email: initialValues?.email ?? '',
+    personalEmail: initialValues?.personalEmail ?? '',
     phone: initialValues?.phone ?? '',
     jobTitle: initialValues?.jobTitle ?? '',
     departmentId: initialValues?.departmentId ?? '',
@@ -54,6 +55,7 @@ export function EmployeeForm({
     gender: (initialValues?.gender as Gender) ?? undefined,
     address: initialValues?.address ?? '',
     profilePhotoUrl: initialValues?.profilePhotoUrl ?? '',
+    provisionAccount: true,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -77,9 +79,13 @@ export function EmployeeForm({
     }
 
     if (!formData.email.trim()) {
-      nextErrors.email = 'Email address is required';
+      nextErrors.email = 'Official email address is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-      nextErrors.email = 'Enter a valid email address';
+      nextErrors.email = 'Enter a valid official email address';
+    }
+
+    if (formData.personalEmail?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.personalEmail.trim())) {
+      nextErrors.personalEmail = 'Enter a valid personal email address';
     }
 
     if (!formData.phone.trim()) {
@@ -116,11 +122,13 @@ export function EmployeeForm({
       firstName: formData.firstName.trim(),
       lastName: formData.lastName.trim(),
       email: formData.email.trim(),
+      personalEmail: formData.personalEmail?.trim() || undefined,
       phone: formData.phone.trim(),
       jobTitle: formData.jobTitle.trim(),
       dateOfBirth: formData.dateOfBirth || undefined,
       address: formData.address?.trim() || undefined,
       profilePhotoUrl: formData.profilePhotoUrl?.trim() || undefined,
+      provisionAccount: formData.provisionAccount ?? true,
     });
   };
 
@@ -129,6 +137,12 @@ export function EmployeeForm({
       {serverError && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {serverError}
+        </Alert>
+      )}
+
+      {mode === 'create' && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <strong>Account Provisioning:</strong> An official portal login account will be automatically provisioned for this employee. Initial temporary credentials will be delivered to their <strong>Personal Email</strong>. The employee will be required to change their password on first sign-in.
         </Alert>
       )}
 
@@ -227,10 +241,10 @@ export function EmployeeForm({
 
         {/* Section 2: Personal Information */}
         <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom>
-          Personal Information
+          Personal & Login Information
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-          Contact details and personal background.
+          Contact details and email addresses for official access and credential delivery.
         </Typography>
 
         <Box
@@ -264,14 +278,25 @@ export function EmployeeForm({
           />
 
           <TextField
-            label="Email Address"
+            label="Official Login Email"
             type="email"
             required
             disabled={loading}
             value={formData.email}
             onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
             error={Boolean(errors.email)}
-            helperText={errors.email ?? 'Official email address'}
+            helperText={errors.email ?? 'Official corporate email for system sign-in'}
+            fullWidth
+          />
+
+          <TextField
+            label="Personal Email (For Credential Delivery)"
+            type="email"
+            disabled={loading}
+            value={formData.personalEmail ?? ''}
+            onChange={(e) => setFormData((prev) => ({ ...prev, personalEmail: e.target.value }))}
+            error={Boolean(errors.personalEmail)}
+            helperText={errors.personalEmail ?? 'Temporary login credentials will be delivered here'}
             fullWidth
           />
 

@@ -8,10 +8,22 @@ export const PATHS = {
   admin: '/admin',
   employees: '/admin/employees',
   addEmployee: '/admin/employees/new',
+  importEmployees: '/admin/employees/import',
   employeeDetails: (id: string) => `/admin/employees/${id}`,
   employeeDetailsPattern: '/admin/employees/:id',
   editEmployee: (id: string) => `/admin/employees/${id}/edit`,
   editEmployeePattern: '/admin/employees/:id/edit',
+  attendance: '/attendance',
+  attendanceHistory: '/attendance/history',
+  attendanceReports: '/attendance/reports',
+  attendanceDetailsPattern: '/attendance/:id',
+  attendanceDetails: (id: string) => `/attendance/${id}`,
+  geofences: '/geofences',
+  addGeofence: '/geofences/new',
+  editGeofencePattern: '/geofences/:id/edit',
+  editGeofence: (id: string) => `/geofences/${id}/edit`,
+  notifications: '/notifications',
+  notificationHistory: '/notifications/history',
   unauthorized: '/unauthorized',
 } as const;
 
@@ -25,7 +37,7 @@ export function homePathForUser(user: AuthUser | null): string {
     case 'HR':
       return PATHS.hr;
     case 'EMPLOYEE':
-      return PATHS.employee;
+      return PATHS.attendance;
     default:
       return PATHS.unauthorized;
   }

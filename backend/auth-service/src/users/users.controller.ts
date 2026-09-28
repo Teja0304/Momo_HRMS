@@ -1,6 +1,8 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { ROLE_NAMES } from '../common/constants/rbac.constants';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -18,15 +20,16 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   /**
-   * User provisioning (NOT self-registration). Only SUPER_ADMIN may
-   * create users through this endpoint. The Employee Service can later
-   * call UsersService.createUser directly (in-process) or via an
-   * internal/service-to-service endpoint using the same method.
+   * User provisioning (NOT self-registration). SUPER_ADMIN and HR_ADMIN may
+   * create users through this endpoint. HR_ADMIN cannot assign SUPER_ADMIN role.
    */
   @Post()
-  @Roles(ROLE_NAMES.SUPER_ADMIN)
-  create(@Body() dto: CreateUserDto): Promise<UserResponseDto> {
-    return this.usersService.createUser(dto);
+  @Roles(ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.HR_ADMIN)
+  create(
+    @Body() dto: CreateUserDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<UserResponseDto> {
+    return this.usersService.createUser(dto, actor);
   }
 
   @Get()
@@ -66,13 +69,21 @@ export class UsersController {
    * sessions.
    */
   @Post(':id/reset-password')
-  @Roles(ROLE_NAMES.SUPER_ADMIN)
+  @Roles(ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.HR_ADMIN)
   @HttpCode(HttpStatus.OK)
   async resetPassword(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ResetPasswordDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<{ success: true }> {
-    await this.usersService.adminResetPassword(id, dto.temporaryPassword);
+    await this.usersService.adminResetPassword(id, dto.temporaryPassword, actor);
     return { success: true };
+  }
+
+  @Delete(':id')
+  @Roles(ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.HR_ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteUser(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.usersService.deleteUser(id);
   }
 }

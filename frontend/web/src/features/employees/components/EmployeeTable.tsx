@@ -19,8 +19,10 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PeopleIcon from '@mui/icons-material/People';
+import VpnKeyOutlinedIcon from '@mui/icons-material/VpnKeyOutlined';
 import type { Employee, PageMeta } from '../../../types/employee';
 import { EmployeeStatusBadge } from './EmployeeStatusBadge';
+import { AccountStatusBadge } from './AccountStatusBadge';
 
 interface Props {
   employees: Employee[];
@@ -32,6 +34,7 @@ interface Props {
   onView: (id: string) => void;
   onEdit: (id: string) => void;
   onToggleStatus: (employee: Employee) => void;
+  onResendCredentials?: (employee: Employee) => void;
   onRetry: () => void;
 }
 
@@ -45,6 +48,7 @@ export function EmployeeTable({
   onView,
   onEdit,
   onToggleStatus,
+  onResendCredentials,
   onRetry,
 }: Props) {
   if (error) {
@@ -74,6 +78,7 @@ export function EmployeeTable({
               <TableCell sx={{ fontWeight: 700 }}>Department & Title</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Role</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Account</TableCell>
               <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -104,6 +109,9 @@ export function EmployeeTable({
                   <TableCell>
                     <Skeleton variant="rounded" width={70} height={24} />
                   </TableCell>
+                  <TableCell>
+                    <Skeleton variant="rounded" width={85} height={24} />
+                  </TableCell>
                   <TableCell align="right">
                     <Skeleton variant="rounded" width={100} height={32} sx={{ ml: 'auto' }} />
                   </TableCell>
@@ -111,7 +119,7 @@ export function EmployeeTable({
               ))
             ) : employees.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} sx={{ py: 6, textAlign: 'center' }}>
+                <TableCell colSpan={7} sx={{ py: 6, textAlign: 'center' }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                     <PeopleIcon sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.5 }} />
                     <Typography variant="h6" color="text.secondary">
@@ -159,6 +167,11 @@ export function EmployeeTable({
 
                     <TableCell>
                       <Typography variant="body2">{emp.email}</Typography>
+                      {emp.personalEmail && (
+                        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.75rem' }}>
+                          Personal: {emp.personalEmail}
+                        </Typography>
+                      )}
                       <Typography variant="caption" color="text.secondary">
                         {emp.phone}
                       </Typography>
@@ -183,8 +196,27 @@ export function EmployeeTable({
                       <EmployeeStatusBadge status={emp.status} />
                     </TableCell>
 
+                    <TableCell>
+                      <AccountStatusBadge
+                        hasAccount={Boolean(emp.userId || emp.hasAccount)}
+                        credentialsSentAt={emp.credentialsSentAt}
+                      />
+                    </TableCell>
+
                     <TableCell align="right">
                       <Box sx={{ display: 'inline-flex', gap: 0.5 }}>
+                        {onResendCredentials && (
+                          <Tooltip title={emp.userId ? 'Resend Credentials / Reset Password' : 'Provision Portal Account'}>
+                            <IconButton
+                              size="small"
+                              color="secondary"
+                              onClick={() => onResendCredentials(emp)}
+                            >
+                              <VpnKeyOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+
                         <Tooltip title="View Details">
                           <IconButton
                             size="small"

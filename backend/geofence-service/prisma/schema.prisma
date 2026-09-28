@@ -1,0 +1,62 @@
+// Geofence Service - Prisma Schema
+// Owns ONLY office boundaries, polygon vertices, and geofence definitions.
+// Does NOT own employee data, user passwords, or attendance sessions.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Office {
+  id                 String            @id @default(uuid())
+  code               String            @unique @db.VarChar(64)
+  name               String            @db.VarChar(128)
+  address            String?           @db.VarChar(255)
+  city               String?           @db.VarChar(64)
+  country            String?           @db.VarChar(64)
+  isActive           Boolean           @default(true) @map("is_active")
+  minAltitudeMeters  Float?            @map("min_altitude_meters")
+  maxAltitudeMeters  Float?            @map("max_altitude_meters")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  polygons           GeofencePolygon[]
+
+  @@map("offices")
+}
+
+model GeofencePolygon {
+  id                 String           @id @default(uuid())
+  officeId           String           @map("office_id")
+  name               String           @default("Main Boundary") @db.VarChar(128)
+  version            Int              @default(1)
+  isActive           Boolean          @default(true) @map("is_active")
+  minAltitudeMeters  Float?           @map("min_altitude_meters")
+  maxAltitudeMeters  Float?           @map("max_altitude_meters")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  office             Office           @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  vertices           GeofenceVertex[]
+
+  @@index([officeId])
+  @@map("geofence_polygons")
+}
+
+model GeofenceVertex {
+  id         String          @id @default(uuid())
+  polygonId  String          @map("polygon_id")
+  sequence   Int
+  latitude   Float
+  longitude  Float
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  polygon    GeofencePolygon @relation(fields: [polygonId], references: [id], onDelete: Cascade)
+
+  @@index([polygonId])
+  @@map("geofence_vertices")
+}

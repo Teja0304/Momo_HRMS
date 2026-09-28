@@ -13,6 +13,7 @@ import Snackbar from '@mui/material/Snackbar';
 import TextField from '@mui/material/TextField';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { DashboardLayout } from '../../../components/DashboardLayout';
 import { PATHS } from '../../../routes/paths';
 import {
@@ -20,6 +21,7 @@ import {
   fetchActiveDepartments,
   fetchEmployees,
   fetchRoles,
+  resendCredentials,
 } from '../../../services/employeeService';
 import type {
   Department,
@@ -179,6 +181,20 @@ export default function EmployeeListPage() {
     }
   };
 
+  const handleResendCredentials = async (employee: Employee) => {
+    try {
+      const res = await resendCredentials(employee.id);
+      setFeedback(res.message || `Credentials sent to ${res.deliveredTo}`);
+      loadEmployees();
+    } catch (err: unknown) {
+      const msg =
+        axios.isAxiosError(err) && err.response?.data?.error?.message
+          ? err.response.data.error.message
+          : 'Failed to dispatch credentials. Please try again.';
+      setError(msg);
+    }
+  };
+
   return (
     <DashboardLayout
       title="Employee Management"
@@ -192,13 +208,22 @@ export default function EmployeeListPage() {
         >
           Back to Dashboard
         </Button>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => navigate(PATHS.addEmployee)}
-        >
-          Add Employee
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1.5 }}>
+          <Button
+            variant="outlined"
+            startIcon={<CloudUploadIcon />}
+            onClick={() => navigate(PATHS.importEmployees)}
+          >
+            Bulk Import
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => navigate(PATHS.addEmployee)}
+          >
+            Add Employee
+          </Button>
+        </Box>
       </Box>
 
       <EmployeeFilters
@@ -232,6 +257,7 @@ export default function EmployeeListPage() {
           setStatusTarget(emp);
           setStatusReason('');
         }}
+        onResendCredentials={handleResendCredentials}
         onRetry={() => loadEmployees(meta.page, meta.limit)}
       />
 

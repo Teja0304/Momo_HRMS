@@ -25,15 +25,18 @@ import EditIcon from '@mui/icons-material/Edit';
 import SmartphoneIcon from '@mui/icons-material/Smartphone';
 import FaceIcon from '@mui/icons-material/Face';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import VpnKeyOutlinedIcon from '@mui/icons-material/VpnKeyOutlined';
 import { DashboardLayout } from '../../../components/DashboardLayout';
 import { LoadingIndicator } from '../../../components/LoadingIndicator';
 import { PATHS } from '../../../routes/paths';
 import {
   changeEmployeeStatus,
   fetchEmployeeProfile,
+  resendCredentials,
 } from '../../../services/employeeService';
 import type { EmployeeProfileResponse } from '../../../types/employee';
 import { EmployeeStatusBadge } from '../components/EmployeeStatusBadge';
+import { AccountStatusBadge } from '../components/AccountStatusBadge';
 
 export default function EmployeeDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -47,6 +50,7 @@ export default function EmployeeDetailsPage() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusReason, setStatusReason] = useState('');
   const [statusSubmitting, setStatusSubmitting] = useState(false);
+  const [resending, setResending] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
@@ -66,6 +70,24 @@ export default function EmployeeDetailsPage() {
       setLoading(false);
     }
   }, [id]);
+
+  const handleResend = async () => {
+    if (!id) return;
+    setResending(true);
+    try {
+      const res = await resendCredentials(id);
+      setFeedback(res.message || `Credentials sent to ${res.deliveredTo}`);
+      loadProfile();
+    } catch (err: unknown) {
+      const msg =
+        axios.isAxiosError(err) && err.response?.data?.error?.message
+          ? err.response.data.error.message
+          : 'Failed to dispatch credentials.';
+      setError(msg);
+    } finally {
+      setResending(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -174,6 +196,15 @@ export default function EmployeeDetailsPage() {
         <Box sx={{ display: 'flex', gap: 1.5 }}>
           <Button
             variant="outlined"
+            color="secondary"
+            startIcon={<VpnKeyOutlinedIcon />}
+            disabled={resending}
+            onClick={handleResend}
+          >
+            {resending ? 'Sending...' : 'Resend Credentials'}
+          </Button>
+          <Button
+            variant="outlined"
             color={isActive ? 'error' : 'success'}
             startIcon={isActive ? <BlockIcon /> : <CheckCircleIcon />}
             onClick={() => setStatusDialogOpen(true)}
@@ -200,11 +231,16 @@ export default function EmployeeDetailsPage() {
             {initials}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 200 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5, flexWrap: 'wrap' }}>
               <Typography variant="h5" sx={{ fontWeight: 700 }}>
                 {employee.firstName} {employee.lastName}
               </Typography>
               <EmployeeStatusBadge status={employee.status} size="medium" />
+              <AccountStatusBadge
+                hasAccount={Boolean(employee.userId || employee.hasAccount)}
+                credentialsSentAt={employee.credentialsSentAt}
+                size="medium"
+              />
             </Box>
             <Typography variant="body1" color="text.secondary">
               {employee.jobTitle} • {employee.department?.name}
@@ -221,14 +257,24 @@ export default function EmployeeDetailsPage() {
         <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom>
-              Personal Information
+              Personal & Account Information
             </Typography>
             <Divider sx={{ my: 1.5 }} />
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <Box>
-                <Typography variant="caption" color="text.secondary">Email Address</Typography>
+                <Typography variant="caption" color="text.secondary">Official Login Email</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>{employee.email}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Personal Email (Credential Delivery)</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>{employee.personalEmail || 'Not specified'}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Credentials Last Sent</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {employee.credentialsSentAt ? new Date(employee.credentialsSentAt).toLocaleString() : 'Not dispatched yet'}
+                </Typography>
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary">Phone Number</Typography>

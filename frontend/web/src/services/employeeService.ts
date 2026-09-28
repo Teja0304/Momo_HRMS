@@ -4,6 +4,9 @@ import type {
   ChangeEmployeeStatusPayload,
   CreateEmployeePayload,
   Department,
+  Device,
+  DeviceStatus,
+  DeviceType,
   Employee,
   EmployeeListQuery,
   EmployeeProfileResponse,
@@ -124,3 +127,93 @@ export async function fetchRoles(): Promise<Role[]> {
   const response = await api.get<ApiResponse<Role[]>>(`${EMPLOYEE_API_URL}/roles`);
   return response.data.data;
 }
+
+/**
+ * Registers an authorized hardware device for an employee.
+ * POST /api/v1/employees/:id/devices
+ */
+export async function registerEmployeeDevice(
+  employeeId: string,
+  payload: { deviceName: string; deviceType: DeviceType; deviceIdentifier: string },
+): Promise<Device> {
+  const response = await api.post<ApiResponse<Device>>(
+    `${EMPLOYEE_API_URL}/employees/${employeeId}/devices`,
+    payload,
+  );
+  return response.data.data;
+}
+
+/**
+ * Updates a registered device's status (ACTIVE, INACTIVE, REVOKED).
+ * PATCH /api/v1/devices/:id/status
+ */
+export async function changeDeviceStatus(
+  deviceId: string,
+  status: DeviceStatus,
+): Promise<Device> {
+  const response = await api.patch<ApiResponse<Device>>(
+    `${EMPLOYEE_API_URL}/devices/${deviceId}/status`,
+    { status },
+  );
+  return response.data.data;
+}
+
+/**
+ * Resends temporary credentials or resets password and notifies employee.
+ * POST /api/v1/employees/:id/resend-credentials
+ */
+export async function resendCredentials(
+  id: string,
+): Promise<{ success: boolean; message: string; deliveredTo?: string }> {
+  const response = await api.post<ApiResponse<{ success: boolean; message: string; deliveredTo?: string }>>(
+    `${EMPLOYEE_API_URL}/employees/${id}/resend-credentials`,
+  );
+  return response.data.data;
+}
+
+/**
+ * Downloads a sample CSV import template.
+ * GET /api/v1/employees/import/template
+ */
+export async function downloadImportTemplate(): Promise<Blob> {
+  const response = await api.get(`${EMPLOYEE_API_URL}/employees/import/template`, {
+    responseType: 'blob',
+  });
+  return response.data;
+}
+
+/**
+ * Validates a CSV file for employee bulk import without persisting changes.
+ * POST /api/v1/employees/import/validate
+ */
+export async function validateImportFile(file: File): Promise<import('../types/employee').ValidationSummary> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post<ApiResponse<import('../types/employee').ValidationSummary>>(
+    `${EMPLOYEE_API_URL}/employees/import/validate`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return response.data.data;
+}
+
+/**
+ * Executes employee bulk import.
+ * POST /api/v1/employees/import
+ */
+export async function executeImportFile(
+  file: File,
+  provisionAccounts: boolean = true,
+): Promise<import('../types/employee').ImportExecutionResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('provisionAccounts', String(provisionAccounts));
+  const response = await api.post<ApiResponse<import('../types/employee').ImportExecutionResult>>(
+    `${EMPLOYEE_API_URL}/employees/import`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return response.data.data;
+}
+
+

@@ -12,16 +12,18 @@ export default function UnauthorizedPage() {
 
   return (
     <AuthLayout>
-      <AppHeader title="Access denied" showLogo={false} />
+      <AppHeader title="Access Restricted" showLogo={false} />
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        You do not have permission to view that page.
+        {user?.appRole === 'EMPLOYEE'
+          ? 'The web portal is reserved for Admin and HR administrators. Standard employees must log in using the Momo HRMS mobile app on Android or iOS.'
+          : 'You do not have permission to view that page.'}
       </Typography>
-      {target ? (
+      {target && target !== '/unauthorized' ? (
         <Button component={RouterLink} to={target} variant="contained" fullWidth disableElevation sx={{ mb: 1 }}>
           Go to my dashboard
         </Button>
       ) : null}
-      <Button fullWidth onClick={() => void logout()}>
+      <Button fullWidth variant="outlined" onClick={() => void logout()}>
         Log out
       </Button>
     </AuthLayout>

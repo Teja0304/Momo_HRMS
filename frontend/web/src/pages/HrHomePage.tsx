@@ -5,6 +5,9 @@ import Card from '@mui/material/Card';
 import CardActions from '@mui/material/CardActions';
 import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { DashboardLayout } from '../components/DashboardLayout';
@@ -16,7 +19,7 @@ export default function HrHomePage() {
   return (
     <DashboardLayout
       title="HR Dashboard"
-      subtitle="Review employees, organizational structure, and team members."
+      subtitle="Review employees, organizational structure, attendance tracking, and workplace geofences."
     >
       <Box
         sx={{
@@ -67,6 +70,75 @@ export default function HrHomePage() {
               onClick={() => navigate(PATHS.addEmployee)}
             >
               Add Employee
+            </Button>
+          </CardActions>
+        </Card>
+
+        <Card variant="outlined" sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <CardContent sx={{ flex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+              <AccessTimeIcon color="primary" sx={{ fontSize: 32 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Attendance & Time Logs
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Monitor daily check-ins, punctuality records, out-of-geofence pauses, and review reports.
+            </Typography>
+          </CardContent>
+          <CardActions sx={{ p: 2, pt: 0 }}>
+            <Button
+              variant="contained"
+              fullWidth
+              onClick={() => navigate(PATHS.attendance)}
+            >
+              Attendance Dashboard
+            </Button>
+          </CardActions>
+        </Card>
+
+        <Card variant="outlined" sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <CardContent sx={{ flex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+              <LocationOnIcon color="primary" sx={{ fontSize: 32 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Workplace Geofences
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Manage workplace locations, configure polygon perimeter vertices, and test coordinate verification.
+            </Typography>
+          </CardContent>
+          <CardActions sx={{ p: 2, pt: 0 }}>
+            <Button
+              variant="outlined"
+              fullWidth
+              onClick={() => navigate(PATHS.geofences)}
+            >
+              Manage Geofences
+            </Button>
+          </CardActions>
+        </Card>
+
+        <Card variant="outlined" sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <CardContent sx={{ flex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+              <NotificationsIcon color="primary" sx={{ fontSize: 32 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Notifications & Broadcasts
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Send organizational announcements, track system alerts, and review real-time notification streams.
+            </Typography>
+          </CardContent>
+          <CardActions sx={{ p: 2, pt: 0 }}>
+            <Button
+              variant="outlined"
+              fullWidth
+              onClick={() => navigate(PATHS.notifications)}
+            >
+              Notification Center
             </Button>
           </CardActions>
         </Card>

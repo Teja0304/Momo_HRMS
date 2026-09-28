@@ -1,6 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
+import { ROLE_NAMES } from '../common/constants/rbac.constants';
+import type { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
@@ -33,7 +35,13 @@ export class UsersService {
    * endpoint (SUPER_ADMIN only) or, later, directly by the Employee
    * Service when it provisions a new hire.
    */
-  async createUser(dto: CreateUserDto): Promise<UserResponseDto> {
+  async createUser(dto: CreateUserDto, actor?: AuthenticatedUser): Promise<UserResponseDto> {
+    if (actor && !actor.roles.includes(ROLE_NAMES.SUPER_ADMIN)) {
+      if (dto.roles.includes(ROLE_NAMES.SUPER_ADMIN)) {
+        throw new ForbiddenException('Only a SUPER_ADMIN can assign the SUPER_ADMIN role');
+      }
+    }
+
     const normalizedEmail = this.normalizeEmail(dto.email);
 
     const [existingEmail, existingUsername] = await Promise.all([
@@ -214,10 +222,20 @@ export class UsersService {
    * session so a possibly-compromised old password can't keep a session
    * alive.
    */
-  async adminResetPassword(userId: string, temporaryPassword: string): Promise<void> {
-    const existing = await this.prisma.user.findUnique({ where: { id: userId } });
+  async adminResetPassword(userId: string, temporaryPassword: string, actor?: AuthenticatedUser): Promise<void> {
+    const existing = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { userRoles: { include: { role: true } } },
+    });
     if (!existing) {
       throw new NotFoundException('User not found');
+    }
+
+    if (actor && !actor.roles.includes(ROLE_NAMES.SUPER_ADMIN)) {
+      const hasSuperAdmin = existing.userRoles.some((ur) => ur.role.name === ROLE_NAMES.SUPER_ADMIN);
+      if (hasSuperAdmin) {
+        throw new ForbiddenException('Only a SUPER_ADMIN can reset a SUPER_ADMIN password');
+      }
     }
 
     const passwordHash = await argon2.hash(temporaryPassword);
@@ -231,6 +249,14 @@ export class UsersService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    const existing = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) {
+      throw new NotFoundException('User not found');
+    }
+    await this.prisma.user.delete({ where: { id: userId } });
   }
 
   async updateLastLogin(userId: string): Promise<void> {

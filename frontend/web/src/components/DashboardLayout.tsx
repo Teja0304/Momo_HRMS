@@ -10,6 +10,9 @@ import Snackbar from '@mui/material/Snackbar';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PeopleIcon from '@mui/icons-material/People';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -38,23 +41,24 @@ export function DashboardLayout({ title, subtitle, children }: Props) {
           <Typography
             variant="h6"
             color="primary"
-            sx={{ fontWeight: 800, flexGrow: { xs: 1, sm: 0 }, mr: 3, cursor: 'pointer' }}
+            sx={{ fontWeight: 800, flexGrow: { xs: 1, md: 0 }, mr: 3, cursor: 'pointer' }}
             onClick={() => navigate(homePathForUser(user))}
           >
             {COMPANY_NAME}
           </Typography>
 
-          {isManagementUser && (
-            <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 1, flexGrow: 1 }}>
-              <Button
-                component={RouterLink}
-                to={homePathForUser(user)}
-                color="inherit"
-                size="small"
-                startIcon={<DashboardIcon fontSize="small" />}
-              >
-                Dashboard
-              </Button>
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.5, flexGrow: 1 }}>
+            <Button
+              component={RouterLink}
+              to={homePathForUser(user)}
+              color="inherit"
+              size="small"
+              startIcon={<DashboardIcon fontSize="small" />}
+            >
+              Dashboard
+            </Button>
+
+            {isManagementUser && (
               <Button
                 component={RouterLink}
                 to={PATHS.employees}
@@ -64,8 +68,40 @@ export function DashboardLayout({ title, subtitle, children }: Props) {
               >
                 Employees
               </Button>
-            </Box>
-          )}
+            )}
+
+            <Button
+              component={RouterLink}
+              to={PATHS.attendance}
+              color="inherit"
+              size="small"
+              startIcon={<AccessTimeIcon fontSize="small" />}
+            >
+              Attendance
+            </Button>
+
+            {isManagementUser && (
+              <Button
+                component={RouterLink}
+                to={PATHS.geofences}
+                color="inherit"
+                size="small"
+                startIcon={<LocationOnIcon fontSize="small" />}
+              >
+                Geofences
+              </Button>
+            )}
+
+            <Button
+              component={RouterLink}
+              to={PATHS.notifications}
+              color="inherit"
+              size="small"
+              startIcon={<NotificationsIcon fontSize="small" />}
+            >
+              Notifications
+            </Button>
+          </Box>
 
           <Box sx={{ ml: 'auto' }}>
             <Button color="inherit" startIcon={<LogoutIcon />} onClick={() => void logout()}>

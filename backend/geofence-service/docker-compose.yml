@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  geofence-db:
+    image: mysql:8.0
+    container_name: geofence-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: geofence_db
+      MYSQL_USER: geofence_user
+      MYSQL_PASSWORD: geofence_password
+    ports:
+      - '3308:3306'
+    volumes:
+      - geofence_db_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-proot_password']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  geofence-service:
+    build: .
+    container_name: geofence-service
+    restart: always
+    ports:
+      - '3003:3003'
+    environment:
+      PORT: 3003
+      NODE_ENV: production
+      DATABASE_URL: mysql://geofence_user:geofence_password@geofence-db:3306/geofence_db
+      API_PREFIX: api/v1
+      SWAGGER_PATH: api/docs
+      GEOFENCE_DEV_AUTH: "false"
+      GATEWAY_SHARED_SECRET: dev-gateway-secret
+    depends_on:
+      geofence-db:
+        condition: service_healthy
+
+volumes:
+  geofence_db_data:

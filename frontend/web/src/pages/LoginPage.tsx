@@ -45,7 +45,7 @@ export default function LoginPage() {
 
   return (
     <AuthLayout>
-      <AppHeader title="Welcome Back" subtitle="Login to continue" />
+      <AppHeader title="Momo HRMS" subtitle="Admin & HR Management Portal" />
 
       <ErrorMessage message={notice} variant="info" />
       <ErrorMessage message={submitError} />
@@ -89,7 +89,7 @@ export default function LoginPage() {
       </form>
 
       <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 3 }}>
-        Forgot your password? Ask your administrator to reset it for you.
+        <strong>Note for Employees:</strong> Web portal access is restricted to Admin & HR. Please log in using the Momo HRMS mobile app.
       </Typography>
     </AuthLayout>
   );

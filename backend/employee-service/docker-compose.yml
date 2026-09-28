@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  employee-db:
+    image: mysql:8.0
+    container_name: employee-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: employee_db
+      MYSQL_USER: employee_user
+      MYSQL_PASSWORD: employee_password
+    ports:
+      - '3309:3306'
+    volumes:
+      - employee_db_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-proot_password']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  employee-service:
+    build: .
+    container_name: employee-service
+    restart: always
+    ports:
+      - '3004:3004'
+    environment:
+      PORT: 3004
+      NODE_ENV: production
+      DATABASE_URL: mysql://employee_user:employee_password@employee-db:3306/employee_db
+      API_PREFIX: api/v1
+      SWAGGER_PATH: api/docs
+      EMPLOYEE_DEV_AUTH: "false"
+      GATEWAY_SHARED_SECRET: dev-gateway-secret
+    depends_on:
+      employee-db:
+        condition: service_healthy
+
+volumes:
+  employee_db_data:

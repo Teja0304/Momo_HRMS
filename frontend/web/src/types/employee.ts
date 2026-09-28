@@ -44,6 +44,7 @@ export interface Employee {
   firstName: string;
   lastName: string;
   email: string;
+  personalEmail?: string | null;
   phone: string;
   dateOfBirth?: string | null;
   gender?: Gender | null;
@@ -54,6 +55,8 @@ export interface Employee {
   department: DepartmentRef;
   role: RoleRef;
   status: EmploymentStatus;
+  hasAccount?: boolean;
+  credentialsSentAt?: string | null;
   createdAt: string;
   updatedAt: string;
   userId?: string | null;
@@ -111,6 +114,7 @@ export interface CreateEmployeePayload {
   firstName: string;
   lastName: string;
   email: string;
+  personalEmail?: string;
   phone: string;
   dateOfBirth?: string;
   gender?: Gender;
@@ -121,12 +125,14 @@ export interface CreateEmployeePayload {
   departmentId: string;
   roleId: string;
   userId?: string;
+  provisionAccount?: boolean;
 }
 
 export interface UpdateEmployeePayload {
   firstName?: string;
   lastName?: string;
   email?: string;
+  personalEmail?: string | null;
   phone?: string;
   dateOfBirth?: string | null;
   gender?: Gender | null;
@@ -139,4 +145,54 @@ export interface UpdateEmployeePayload {
 export interface ChangeEmployeeStatusPayload {
   status: EmploymentStatus;
   reason?: string;
+}
+
+export type ImportRowStatus = 'VALID_NEW' | 'VALID_UPDATE' | 'DUPLICATE' | 'INVALID';
+
+export interface ValidatedImportRow {
+  rowNumber: number;
+  data: {
+    employeeCode: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    personalEmail?: string;
+    phone: string;
+    dateOfJoining: string;
+    jobTitle: string;
+    department: string;
+    role: string;
+    dateOfBirth?: string;
+    gender?: Gender;
+    address?: string;
+  };
+  status: ImportRowStatus;
+  errors: string[];
+  resolvedDepartmentId?: string;
+  resolvedRoleId?: string;
+  existingEmployeeId?: string;
+}
+
+export interface ValidationSummary {
+  totalRows: number;
+  validNewCount: number;
+  validUpdateCount: number;
+  duplicateCount: number;
+  invalidCount: number;
+  rows: ValidatedImportRow[];
+}
+
+export interface ImportExecutionResult {
+  totalRows: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  results: {
+    rowNumber: number;
+    employeeCode: string;
+    email: string;
+    status: 'CREATED' | 'UPDATED' | 'SKIPPED' | 'FAILED';
+    message?: string;
+  }[];
 }
