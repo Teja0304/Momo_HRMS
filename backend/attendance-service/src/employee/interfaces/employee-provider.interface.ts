@@ -7,6 +7,7 @@
  */
 export interface EmployeeProvider {
   isAssignedToOffice(employeeId: string, officeId: string): Promise<boolean>;
+  resolveEmployeeIdentifiers?(employeeId: string): Promise<string[]>;
 }
 
 export const EMPLOYEE_PROVIDER = Symbol('EMPLOYEE_PROVIDER');

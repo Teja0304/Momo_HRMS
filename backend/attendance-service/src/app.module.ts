@@ -7,6 +7,7 @@ import configuration, { AppConfig } from './config/configuration';
 import { DatabaseModule } from './database/database.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { HealthModule } from './health/health.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { EmployeeAuthGuard } from './common/guards/employee-auth.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
@@ -30,6 +31,7 @@ import { ResponseEnvelopeInterceptor } from './common/interceptors/response-enve
     DatabaseModule,
     AttendanceModule,
     HealthModule,
+    NotificationsModule,
   ],
   providers: [
     // Resolves the calling employee's identity for every route (see

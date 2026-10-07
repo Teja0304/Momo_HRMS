@@ -52,8 +52,8 @@ export default function ResetPasswordPage() {
   return (
     <AuthLayout>
       <AppHeader
-        title="Create a New Password"
-        subtitle="For your account security, please update your password to continue."
+        title="Create your new password"
+        subtitle="Your temporary password must be changed before continuing."
       />
 
       <ErrorMessage message={submitError} />

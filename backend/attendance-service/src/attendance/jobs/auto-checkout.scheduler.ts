@@ -32,7 +32,7 @@ export class AutoCheckoutScheduler {
       });
     });
 
-    this.schedulerRegistry.addCronJob('auto-checkout-sweep', job);
+    this.schedulerRegistry.addCronJob('auto-checkout-sweep', job as any);
     job.start();
     this.logger.log(`Auto-checkout scheduler started (cron="${cron}", batchSize=${batchSize})`);
   }

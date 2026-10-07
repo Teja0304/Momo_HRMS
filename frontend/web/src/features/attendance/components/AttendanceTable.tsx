@@ -1,5 +1,6 @@
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Pagination from '@mui/material/Pagination';
 import Paper from '@mui/material/Paper';
@@ -98,11 +99,25 @@ export function AttendanceTable({
                 </TableCell>
                 <TableCell>{formatTime(session.checkInAt)}</TableCell>
                 <TableCell>{formatTime(session.checkOutAt)}</TableCell>
-                <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                  {formatSeconds(session.totalWorkingSeconds)}
+                <TableCell>
+                  <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13 }}>
+                    {formatSeconds(session.totalWorkingSeconds)}
+                  </Typography>
+                  {session.hasSpecialCondition && (
+                    <Box sx={{ mt: 0.5 }}>
+                      <Chip
+                        size="small"
+                        color="secondary"
+                        variant="outlined"
+                        label={`+${formatSeconds(session.specialConditionSeconds || 0)} Special`}
+                        title={`Regular: ${formatSeconds(session.regularWorkingSeconds ?? (session.totalWorkingSeconds - (session.specialConditionSeconds || 0)))} | Reason: ${session.specialConditionReason || 'Special Condition'}`}
+                        sx={{ fontSize: 10, height: 20, fontWeight: 700, bgcolor: 'secondary.50' }}
+                      />
+                    </Box>
+                  )}
                 </TableCell>
                 <TableCell>
-                  {session.pauses?.length ? `${session.pauses.length} (${formatSeconds(session.totalPausedSeconds)})` : '0'}
+                  {session.pauses?.length ? `${session.pauses.length} (${formatSeconds(session.totalPausedSeconds || 0)})` : '0'}
                 </TableCell>
                 <TableCell align="right">
                   <Button

@@ -1,8 +1,6 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
-import { ROLE_NAMES } from '../common/constants/rbac.constants';
-import type { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
@@ -35,13 +33,7 @@ export class UsersService {
    * endpoint (SUPER_ADMIN only) or, later, directly by the Employee
    * Service when it provisions a new hire.
    */
-  async createUser(dto: CreateUserDto, actor?: AuthenticatedUser): Promise<UserResponseDto> {
-    if (actor && !actor.roles.includes(ROLE_NAMES.SUPER_ADMIN)) {
-      if (dto.roles.includes(ROLE_NAMES.SUPER_ADMIN)) {
-        throw new ForbiddenException('Only a SUPER_ADMIN can assign the SUPER_ADMIN role');
-      }
-    }
-
+  async createUser(dto: CreateUserDto): Promise<UserResponseDto> {
     const normalizedEmail = this.normalizeEmail(dto.email);
 
     const [existingEmail, existingUsername] = await Promise.all([
@@ -72,9 +64,8 @@ export class UsersService {
         fullName: dto.fullName,
         passwordHash,
         isActive: true,
-        // Admin-provisioned users get a temporary password and must
-        // set their own on first login.
-        mustChangePassword: true,
+        // Allow immediate login or require password change if specified
+        mustChangePassword: dto.mustChangePassword ?? false,
         userRoles: {
           create: roles.map((role) => ({ roleId: role.id })),
         },
@@ -85,10 +76,13 @@ export class UsersService {
     return this.toUserResponse(user);
   }
 
-  async findByEmailForAuth(email: string) {
-    const normalizedEmail = this.normalizeEmail(email);
-    return this.prisma.user.findUnique({
-      where: { email: normalizedEmail },
+  async findByEmailForAuth(identifier: string) {
+    const trimmed = identifier.trim();
+    const normalizedEmail = this.normalizeEmail(trimmed);
+    return this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: normalizedEmail }, { username: trimmed }],
+      },
       include: {
         userRoles: {
           include: { role: { include: { rolePermissions: { include: { permission: true } } } } },
@@ -222,20 +216,10 @@ export class UsersService {
    * session so a possibly-compromised old password can't keep a session
    * alive.
    */
-  async adminResetPassword(userId: string, temporaryPassword: string, actor?: AuthenticatedUser): Promise<void> {
-    const existing = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { userRoles: { include: { role: true } } },
-    });
+  async adminResetPassword(userId: string, temporaryPassword: string): Promise<void> {
+    const existing = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!existing) {
       throw new NotFoundException('User not found');
-    }
-
-    if (actor && !actor.roles.includes(ROLE_NAMES.SUPER_ADMIN)) {
-      const hasSuperAdmin = existing.userRoles.some((ur) => ur.role.name === ROLE_NAMES.SUPER_ADMIN);
-      if (hasSuperAdmin) {
-        throw new ForbiddenException('Only a SUPER_ADMIN can reset a SUPER_ADMIN password');
-      }
     }
 
     const passwordHash = await argon2.hash(temporaryPassword);
@@ -249,14 +233,6 @@ export class UsersService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
-  }
-
-  async deleteUser(userId: string): Promise<void> {
-    const existing = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!existing) {
-      throw new NotFoundException('User not found');
-    }
-    await this.prisma.user.delete({ where: { id: userId } });
   }
 
   async updateLastLogin(userId: string): Promise<void> {
@@ -307,6 +283,14 @@ export class UsersService {
       roles,
       permissions: Array.from(permissionSet),
     };
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    await this.prisma.user.delete({ where: { id } });
   }
 
   private toUserResponse(user: {

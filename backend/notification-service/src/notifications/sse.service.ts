@@ -30,7 +30,9 @@ export class SseService {
         (event) =>
           event.recipientId === 'ALL' ||
           event.recipientId === recipientId ||
-          event.recipientType === 'BROADCAST',
+          event.recipientType === 'BROADCAST' ||
+          event.recipientType === 'HR' ||
+          event.recipientId === 'HR',
       ),
       map(
         (event) =>

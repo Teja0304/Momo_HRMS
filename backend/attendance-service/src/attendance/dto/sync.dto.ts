@@ -37,6 +37,11 @@ export class SyncEventDto {
   @ValidateNested()
   @Type(() => LocationDto)
   location?: LocationDto;
+
+  @ApiProperty({ required: false, description: 'Offline stored face verification token' })
+  @IsOptional()
+  @IsString()
+  faceVerificationToken?: string;
 }
 
 export class SyncDto {

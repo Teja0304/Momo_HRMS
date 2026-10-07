@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GeofenceService } from '../services/geofence.service';
@@ -52,4 +54,31 @@ export class OfficeController {
   async setPolygon(@Param('id') id: string, @Body() dto: SetPolygonDto) {
     return this.geofenceService.setOfficePolygon(id, dto);
   }
+
+  @Delete(':id/polygon')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete or remove geofence polygon for an office (HR/Admin only)' })
+  @ApiMessage('Office geofence polygon deleted successfully')
+  async deletePolygon(
+    @Param('id') id: string,
+    @Query('hard') hard?: string,
+  ) {
+    const isHard = hard === undefined || hard === 'true';
+    return this.geofenceService.deleteOfficePolygon(id, isHard);
+  }
+
+  @Delete(':id')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete an office and all its geofence polygons (HR/Admin only)' })
+  @ApiMessage('Office deleted successfully')
+  async deleteOffice(
+    @Param('id') id: string,
+    @Query('hard') hard?: string,
+  ) {
+    const isHard = hard === undefined || hard === 'true';
+    return this.geofenceService.deleteOffice(id, isHard);
+  }
 }
+

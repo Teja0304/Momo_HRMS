@@ -55,14 +55,62 @@ export class AttendanceController {
     return this.attendanceService.sync(employee.employeeId, dto);
   }
 
+  @Get('all-today')
+  async allToday() {
+    return this.attendanceService.getAllToday();
+  }
+
+  @Get('all-history')
+  async allHistory(@Query() query: HistoryQueryDto) {
+    return this.attendanceService.getAllHistory(query);
+  }
+
+  private isHrOrAdmin(roles?: string[]): boolean {
+    if (!roles || !roles.length) return false;
+    return roles.some((r) => {
+      const clean = String(r).replace(/['"\[\]]/g, '').trim().toUpperCase();
+      return ['HR', 'ADMIN', 'HR_ADMIN', 'SUPER_ADMIN'].includes(clean);
+    });
+  }
+
   @Get('today')
-  async today(@CurrentEmployee() employee: EmployeeAuthContext) {
-    return this.attendanceService.getToday(employee.employeeId);
+  async today(
+    @CurrentEmployee() employee: EmployeeAuthContext,
+    @Query('all') all?: string,
+    @Query('employeeId') employeeIdQuery?: string,
+  ) {
+    if (all === 'true' || employeeIdQuery === 'ALL') {
+      return this.attendanceService.getAllToday();
+    }
+    const isHrOrAdmin = this.isHrOrAdmin(employee?.roles);
+    if (isHrOrAdmin && !employeeIdQuery) {
+      return this.attendanceService.getAllToday();
+    }
+    const targetEmployeeId = employeeIdQuery || employee.employeeId;
+    return this.attendanceService.getToday(targetEmployeeId);
   }
 
   @Get('history')
-  async history(@CurrentEmployee() employee: EmployeeAuthContext, @Query() query: HistoryQueryDto) {
-    return this.attendanceService.getHistory(employee.employeeId, query);
+  async history(
+    @CurrentEmployee() employee: EmployeeAuthContext,
+    @Query() query: HistoryQueryDto,
+    @Query('all') all?: string,
+    @Query('employeeId') employeeIdQuery?: string,
+  ) {
+    const effectiveAll =
+      all === 'true' ||
+      employeeIdQuery === 'ALL' ||
+      query.all === 'true' ||
+      query.employeeId === 'ALL';
+    if (effectiveAll) {
+      return this.attendanceService.getAllHistory(query);
+    }
+    const isHrOrAdmin = this.isHrOrAdmin(employee?.roles);
+    const targetEmployeeId = employeeIdQuery || query.employeeId || employee?.employeeId;
+    if (isHrOrAdmin && !employeeIdQuery && !query.employeeId) {
+      return this.attendanceService.getAllHistory(query);
+    }
+    return this.attendanceService.getHistory(targetEmployeeId, query);
   }
 
   @Get(':sessionId')

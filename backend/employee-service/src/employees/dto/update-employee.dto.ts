@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { EmploymentStatus } from '@prisma/client';
-import { IsDateString, IsEmail, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsDateString, IsEmail, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateEmployeeDto {
   @ApiPropertyOptional({ description: 'Employee first name' })
@@ -50,4 +50,89 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   userId?: string;
+
+  @ApiPropertyOptional({ description: 'Personal email' })
+  @IsOptional()
+  @IsString()
+  personalEmail?: string;
+
+  @ApiPropertyOptional({ description: 'Job title' })
+  @IsOptional()
+  @IsString()
+  jobTitle?: string;
+
+  @ApiPropertyOptional({ description: 'Role ID' })
+  @IsOptional()
+  @IsString()
+  roleId?: string;
+
+  @ApiPropertyOptional({ description: 'Primary office ID or Code to assign', example: 'OFFICE-001' })
+  @IsOptional()
+  @IsString()
+  primaryOfficeId?: string;
+
+  @ApiPropertyOptional({ description: 'Office location ID' })
+  @IsOptional()
+  @IsString()
+  officeLocationId?: string;
+
+  @ApiPropertyOptional({ description: 'Office location name' })
+  @IsOptional()
+  @IsString()
+  officeLocationName?: string;
+
+  @ApiPropertyOptional({ description: 'List of office IDs or Codes the employee is assigned to work at', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  officeIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Date of birth' })
+  @IsOptional()
+  @IsString()
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional({ description: 'Gender' })
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @ApiPropertyOptional({ description: 'Address' })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'Permanent address' })
+  @IsOptional()
+  @IsString()
+  permanentAddress?: string;
+
+  @ApiPropertyOptional({ description: 'Alternate phone number' })
+  @IsOptional()
+  @IsString()
+  alternatePhone?: string;
+
+  @ApiPropertyOptional({ description: 'Emergency contact name' })
+  @IsOptional()
+  @IsString()
+  emergencyContactName?: string;
+
+  @ApiPropertyOptional({ description: 'Emergency contact relationship' })
+  @IsOptional()
+  @IsString()
+  emergencyContactRelation?: string;
+
+  @ApiPropertyOptional({ description: 'Emergency contact phone' })
+  @IsOptional()
+  @IsString()
+  emergencyContactPhone?: string;
+
+  @ApiPropertyOptional({ description: 'Is onboarding completed' })
+  @IsOptional()
+  isOnboarded?: boolean;
+
+  @ApiPropertyOptional({ description: 'Profile photo URL' })
+  @IsOptional()
+  @IsString()
+  profilePhotoUrl?: string;
 }

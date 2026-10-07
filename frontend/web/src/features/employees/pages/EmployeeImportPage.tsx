@@ -61,8 +61,29 @@ export default function EmployeeImportPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      setError(null);
     } catch {
-      setError('Failed to download template. Please try again.');
+      // Fallback: Generate the template client-side so user is never blocked
+      try {
+        const fallbackCsv = [
+          'employeeCode,firstName,lastName,email,personalEmail,phone,dateOfJoining,jobTitle,department,role,dateOfBirth,gender,address,officeLocations',
+          'EMP-0010,Aarav,Sharma,aarav.sharma@company.com,aarav.personal@example.com,+91 98765 43210,2026-01-15,Senior Software Engineer,Engineering,EMPLOYEE,1995-06-12,MALE,"Hinjewadi Phase 1, Pune","OFFICE-001, PUN-01"',
+          'EMP-0011,Priya,Patil,priya.patil@company.com,priya.personal@example.com,+91 98765 43211,2026-02-01,HR Specialist,Human Resources,HR,1996-09-24,FEMALE,"Wakad, Pune","OFFICE-001"',
+          'EMP-0012,Rohan,Deshmukh,rohan.deshmukh@company.com,rohan.personal@example.com,+91 98765 43212,2026-03-01,QA Engineer,Quality Assurance,EMPLOYEE,1997-11-05,MALE,"Baner, Pune","PUN-01, OFFICE-001"',
+        ].join('\n');
+        const blob = new Blob([fallbackCsv], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'employee_import_template.csv');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        setError(null);
+      } catch {
+        setError('Failed to download template. Please try again.');
+      }
     }
   };
 
@@ -161,10 +182,13 @@ export default function EmployeeImportPage() {
             <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom>
               Upload Employee CSV File
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 500, mx: 'auto', mb: 3 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 600, mx: 'auto', mb: 2 }}>
               Upload your employee list. Our engine matches records by Employee Code and Official Email.
               New employees will be created and existing employees will be updated.
             </Typography>
+            <Alert severity="info" sx={{ maxWidth: 620, mx: 'auto', mb: 3, textAlign: 'left', fontSize: '0.8125rem' }}>
+              <strong>Multi-Location Support:</strong> You can assign multiple workplaces to an employee using the <code>officeLocations</code> column with comma-separated values (e.g. <code>&quot;OFFICE-001, PUN-01&quot;</code>). Employees will be authorized to clock in at either location!
+            </Alert>
 
             <input
               type="file"

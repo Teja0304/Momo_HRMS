@@ -48,8 +48,18 @@ export default function NotificationListPage() {
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<AppNotification | null>(null);
 
+  const userEmail = user?.email;
+  const userRole = user?.appRole || (isManagement ? 'HR' : 'EMPLOYEE');
+
+  // Tabs: 0: All, 1: Unread, 2: Read
+  const getIsReadFilter = useCallback((tab: number): boolean | undefined => {
+    if (tab === 1) return false;
+    if (tab === 2) return true;
+    return undefined;
+  }, []);
+
   const loadNotifications = useCallback(
-    async (pageToLoad = page, isReadFilter = tabValue === 1 ? false : undefined) => {
+    async (pageToLoad = page, isReadFilter = getIsReadFilter(tabValue)) => {
       setLoading(true);
       setError(null);
       try {
@@ -57,6 +67,8 @@ export default function NotificationListPage() {
           page: pageToLoad,
           limit,
           recipientId,
+          email: userEmail,
+          role: userRole,
           isRead: isReadFilter,
         });
         setNotifications(res.items ?? []);
@@ -74,7 +86,7 @@ export default function NotificationListPage() {
         setLoading(false);
       }
     },
-    [page, limit, recipientId, tabValue],
+    [page, limit, recipientId, userEmail, userRole, tabValue, getIsReadFilter],
   );
 
   useEffect(() => {
@@ -83,7 +95,9 @@ export default function NotificationListPage() {
       page: 1,
       limit,
       recipientId,
-      isRead: tabValue === 1 ? false : undefined,
+      email: userEmail,
+      role: userRole,
+      isRead: getIsReadFilter(tabValue),
     })
       .then((res) => {
         if (active) {
@@ -109,7 +123,7 @@ export default function NotificationListPage() {
     return () => {
       active = false;
     };
-  }, [limit, recipientId, tabValue]);
+  }, [limit, recipientId, userEmail, userRole, tabValue, getIsReadFilter]);
 
   // Connect SSE for real-time notifications
   useEffect(() => {
@@ -144,6 +158,10 @@ export default function NotificationListPage() {
         prev.map((n) => (n.id === notif.id ? { ...n, isRead: true, readAt: new Date().toISOString() } : n)),
       );
       setUnreadCount((c) => Math.max(0, c - 1));
+      // If currently on Unread tab, refresh view so it moves out
+      if (tabValue === 1) {
+        await loadNotifications(page, false);
+      }
     } catch {
       setError('Failed to update notification status.');
     }
@@ -151,10 +169,11 @@ export default function NotificationListPage() {
 
   const handleMarkAllRead = async () => {
     try {
-      await markAllNotificationsAsRead(recipientId);
+      await markAllNotificationsAsRead(recipientId, userEmail, userRole);
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
       setFeedback('All notifications marked as read.');
+      await loadNotifications(1, getIsReadFilter(tabValue));
     } catch {
       setError('Failed to mark all as read.');
     }
@@ -174,6 +193,13 @@ export default function NotificationListPage() {
     }
   };
 
+  const handleViewDetails = (item: AppNotification) => {
+    setPreviewItem(item);
+    if (!item.isRead) {
+      void handleMarkAsRead(item);
+    }
+  };
+
   return (
     <DashboardLayout
       title="Notifications & Alerts"
@@ -183,16 +209,51 @@ export default function NotificationListPage() {
         <Tabs
           value={tabValue}
           onChange={(_, val) => setTabValue(val)}
-          sx={{ borderBottom: 1, borderColor: 'divider' }}
+          textColor="primary"
+          indicatorColor="primary"
+          sx={{
+            minHeight: 46,
+            borderBottom: 1,
+            borderColor: 'divider',
+            '& .MuiTabs-indicator': {
+              height: 3,
+              borderRadius: '3px 3px 0 0',
+            },
+            '& .MuiTab-root': {
+              minHeight: 46,
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '0.92rem',
+              px: 2.5,
+              color: 'text.secondary',
+              '&.Mui-selected': {
+                color: 'primary.main',
+                fontWeight: 700,
+              },
+            },
+          }}
         >
           <Tab label="All Notifications" />
           <Tab
             label={
-              <Badge badgeContent={unreadCount} color="error" sx={{ '& .MuiBadge-badge': { right: -12 } }}>
-                Unread Only
+              <Badge
+                badgeContent={unreadCount}
+                color="error"
+                max={99}
+                sx={{
+                  '& .MuiBadge-badge': {
+                    right: -12,
+                    top: 2,
+                    fontWeight: 700,
+                    fontSize: '0.72rem',
+                  },
+                }}
+              >
+                Unread
               </Badge>
             }
           />
+          <Tab label="Read" />
         </Tabs>
 
         <Stack direction="row" spacing={1.5}>
@@ -238,7 +299,7 @@ export default function NotificationListPage() {
         }}
         onMarkRead={handleMarkAsRead}
         onDelete={handleDelete}
-        onViewDetails={(item) => setPreviewItem(item)}
+        onViewDetails={handleViewDetails}
       />
 
       {/* Dispatch Modal */}
@@ -257,6 +318,9 @@ export default function NotificationListPage() {
         notification={previewItem}
         onClose={() => setPreviewItem(null)}
         onMarkRead={handleMarkAsRead}
+        onActionComplete={() => {
+          void loadNotifications(page, getIsReadFilter(tabValue));
+        }}
       />
 
       <Snackbar open={Boolean(feedback)} autoHideDuration={4000} onClose={() => setFeedback(null)}>

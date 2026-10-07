@@ -1,5 +1,5 @@
 import { api } from '../api/client';
-import { EMPLOYEE_API_URL } from '../config/env';
+import { EMPLOYEE_API_URL, COMPANY_DOMAIN, INTERN_DOMAIN } from '../config/env';
 import type {
   ChangeEmployeeStatusPayload,
   CreateEmployeePayload,
@@ -10,6 +10,7 @@ import type {
   Employee,
   EmployeeListQuery,
   EmployeeProfileResponse,
+  PageMeta,
   PaginatedResponse,
   Role,
   UpdateEmployeePayload,
@@ -39,16 +40,175 @@ export async function fetchEmployees(query: EmployeeListQuery = {}): Promise<Pag
   if (query.roleId) params.roleId = query.roleId;
   if (query.status) params.status = query.status;
 
-  const response = await api.get<ApiResponse<Employee[]>>(`${EMPLOYEE_API_URL}/employees`, { params });
-  return {
-    data: response.data.data,
-    meta: response.data.meta ?? {
-      page: query.page ?? 1,
-      limit: query.limit ?? 20,
-      total: response.data.data.length,
-      totalPages: 1,
-    },
+  const response = await api.get<any>(`${EMPLOYEE_API_URL}/employees`, { params });
+  
+  // Backend returns { success: true, data: { items: [...], total, page, limit, totalPages } }
+  const raw = response.data?.data ?? response.data;
+  let items: Employee[] = [];
+  let meta: PageMeta = {
+    page: query.page ?? 1,
+    limit: query.limit ?? 20,
+    total: 0,
+    totalPages: 1,
   };
+
+  if (Array.isArray(raw)) {
+    items = raw;
+    meta.total = raw.length;
+    meta.totalPages = Math.ceil(raw.length / meta.limit) || 1;
+  } else if (raw && typeof raw === 'object' && Array.isArray(raw.items)) {
+    items = raw.items;
+    meta = {
+      page: Number(raw.page) || meta.page,
+      limit: Number(raw.limit) || meta.limit,
+      total: Number(raw.total) ?? items.length,
+      totalPages: Number(raw.totalPages) || Math.ceil((Number(raw.total) || items.length) / meta.limit) || 1,
+    };
+  }
+
+  if (response.data?.meta) {
+    meta = { ...meta, ...response.data.meta };
+  }
+
+  return {
+    data: items,
+    meta,
+  };
+}
+
+import axios from 'axios';
+
+/**
+ * Checks whether an official company email is already taken by querying both the employee directory
+ * and the auth-service user accounts.
+ */
+export async function checkEmailAvailability(email: string): Promise<boolean> {
+  const target = email.trim().toLowerCase();
+  try {
+    // 1. Check in employee-service
+    const empRes = await fetchEmployees({ search: target });
+    const existsInEmp = empRes.data.some((e) => e.email.toLowerCase() === target);
+    if (existsInEmp) return false;
+
+    // 2. Check in auth-service
+    try {
+      const authRes = await api.get<Array<{ email: string; username?: string }>>('/auth/users', {
+        params: { search: target },
+      });
+      if (Array.isArray(authRes.data)) {
+        const existsInAuth = authRes.data.some((u) => u.email.toLowerCase() === target);
+        if (existsInAuth) return false;
+      }
+    } catch {
+      // If auth-service query fails or is unauthenticated, continue with employee-service result
+    }
+
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Generates an available unique official email based on firstName and lastName.
+ * For HR: name.surname.hr@domain, then name.surname.hr1@domain, name.surname.hr2@domain...
+ * For normal Employee: name.surname@domain, then name.surname1@domain, name.surname2@domain...
+ * For Intern: name.surname@domain, then name.surname1@domain... with intern domain.
+ */
+export async function generateUniqueEmail(
+  firstName: string,
+  lastName: string,
+  options: { isHr?: boolean; isIntern?: boolean } = {}
+): Promise<string> {
+  const f = firstName.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || 'firstname';
+  const l = lastName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const baseName = l ? `${f}.${l}` : f;
+  const domain = options.isIntern ? INTERN_DOMAIN : COMPANY_DOMAIN;
+
+  let candidate: string = '';
+  let counter = 0;
+
+  while (counter <= 50) {
+    if (options.isHr) {
+      const suffix = counter === 0 ? '' : String(counter);
+      candidate = `${baseName}.hr${suffix}@${domain}`;
+    } else {
+      const suffix = counter === 0 ? '' : String(counter);
+      candidate = `${baseName}${suffix}@${domain}`;
+    }
+
+    const available = await checkEmailAvailability(candidate);
+    if (available) {
+      return candidate;
+    }
+    counter++;
+  }
+
+  return candidate;
+}
+
+/**
+ * Creates an employee with automated conflict resolution.
+ * If the auth-service or employee-service returns a 409 duplicate collision (e.g. AUTH_USER_CONFLICT
+ * or EMPLOYEE_DUPLICATE), it automatically advances the numbered suffix according to the naming rule
+ * (name.surname1, name.surname2... or name.surname.hr1, name.surname.hr2...) and retries.
+ */
+export async function createEmployeeWithRetry(
+  payload: CreateEmployeePayload,
+  options: { isHr?: boolean; isIntern?: boolean } = {},
+  maxRetries = 10
+): Promise<Employee> {
+  let attempt = 0;
+  let currentPayload = { ...payload };
+
+  const f = payload.firstName.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || 'firstname';
+  const l = payload.lastName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const baseName = l ? `${f}.${l}` : f;
+  const domain = options.isIntern ? INTERN_DOMAIN : COMPANY_DOMAIN;
+
+  // Extract initial counter if email already has a number
+  let currentCounter = 0;
+  if (currentPayload.email) {
+    const match = currentPayload.email.match(/(?:hr)?(\d+)@/);
+    if (match && match[1]) {
+      currentCounter = parseInt(match[1], 10);
+    }
+  }
+
+  while (attempt < maxRetries) {
+    try {
+      return await createEmployee(currentPayload);
+    } catch (err: unknown) {
+      const isConflict =
+        axios.isAxiosError(err) &&
+        (err.response?.status === 409 ||
+          err.response?.data?.error?.code === 'AUTH_USER_CONFLICT' ||
+          err.response?.data?.error?.code === 'EMPLOYEE_DUPLICATE' ||
+          err.response?.data?.error?.code === 'DUPLICATE_VALUE' ||
+          (typeof err.response?.data?.error?.message === 'string' &&
+            err.response.data.error.message.includes('already exists')));
+
+      if (!isConflict || attempt === maxRetries - 1) {
+        throw err;
+      }
+
+      attempt++;
+      currentCounter++;
+      const nextEmail = options.isHr
+        ? `${baseName}.hr${currentCounter}@${domain}`
+        : `${baseName}${currentCounter}@${domain}`;
+
+      const nextCode = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      currentPayload = {
+        ...currentPayload,
+        email: nextEmail,
+        employeeCode: nextCode,
+      };
+    }
+  }
+
+  return await createEmployee(currentPayload);
 }
 
 /**
@@ -70,20 +230,113 @@ export async function fetchEmployeeProfile(id: string): Promise<EmployeeProfileR
 }
 
 /**
+ * Retrieves employee record linked to an Auth User UUID.
+ * GET /api/v1/employees/by-user/:userId
+ */
+export async function fetchEmployeeByUserId(userId: string): Promise<Employee | null> {
+  try {
+    const response = await api.get<ApiResponse<Employee>>(`${EMPLOYEE_API_URL}/employees/by-user/${userId}`);
+    return response.data?.data || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Creates a new employee record.
  * POST /api/v1/employees
+ * Strips any extra frontend-only keys so that backend z.strictObject validation succeeds.
  */
 export async function createEmployee(payload: CreateEmployeePayload): Promise<Employee> {
-  const response = await api.post<ApiResponse<Employee>>(`${EMPLOYEE_API_URL}/employees`, payload);
+  const cleanPayload: Record<string, unknown> = {
+    employeeCode: payload.employeeCode.trim().toUpperCase(),
+    firstName: payload.firstName.trim(),
+    lastName: payload.lastName.trim(),
+    email: payload.email?.trim().toLowerCase(),
+    phone: payload.phone.trim(),
+    dateOfJoining: payload.dateOfJoining,
+    jobTitle: payload.jobTitle.trim(),
+    departmentId: payload.departmentId,
+    roleId: payload.roleId,
+  };
+
+  if (payload.personalEmail?.trim()) {
+    cleanPayload.personalEmail = payload.personalEmail.trim().toLowerCase();
+  }
+  if (payload.dateOfBirth) {
+    cleanPayload.dateOfBirth = payload.dateOfBirth;
+  }
+  if (payload.gender) {
+    cleanPayload.gender = payload.gender;
+  }
+  if (payload.address?.trim()) {
+    cleanPayload.address = payload.address.trim();
+  }
+  if (payload.profilePhotoUrl?.trim()) {
+    cleanPayload.profilePhotoUrl = payload.profilePhotoUrl.trim();
+  }
+  if (payload.userId) {
+    cleanPayload.userId = payload.userId;
+  }
+  if (typeof payload.provisionAccount === 'boolean') {
+    cleanPayload.provisionAccount = payload.provisionAccount;
+  }
+  if (payload.officeLocationId?.trim()) {
+    cleanPayload.officeLocationId = payload.officeLocationId.trim();
+    cleanPayload.primaryOfficeId = payload.officeLocationId.trim();
+  }
+  if (payload.officeLocationName?.trim()) {
+    cleanPayload.officeLocationName = payload.officeLocationName.trim();
+  }
+  if (payload.primaryOfficeId?.trim()) {
+    cleanPayload.primaryOfficeId = payload.primaryOfficeId.trim();
+  }
+  if (Array.isArray(payload.officeIds) && payload.officeIds.length > 0) {
+    cleanPayload.officeIds = payload.officeIds;
+  }
+
+  const response = await api.post<ApiResponse<Employee>>(`${EMPLOYEE_API_URL}/employees`, cleanPayload);
   return response.data.data;
 }
 
 /**
  * Updates an employee's personal and job details.
  * PUT /api/v1/employees/:id
+ * Strips any extra frontend-only keys so that backend z.strictObject validation succeeds.
  */
 export async function updateEmployee(id: string, payload: UpdateEmployeePayload): Promise<Employee> {
-  const response = await api.put<ApiResponse<Employee>>(`${EMPLOYEE_API_URL}/employees/${id}`, payload);
+  const cleanPayload: Record<string, unknown> = {};
+
+  if (payload.firstName !== undefined) cleanPayload.firstName = payload.firstName.trim();
+  if (payload.lastName !== undefined) cleanPayload.lastName = payload.lastName.trim();
+  if (payload.email !== undefined) cleanPayload.email = payload.email.trim().toLowerCase();
+  if (payload.personalEmail !== undefined) {
+    cleanPayload.personalEmail = payload.personalEmail ? payload.personalEmail.trim().toLowerCase() : null;
+  }
+  if (payload.phone !== undefined) cleanPayload.phone = payload.phone.trim();
+  if (payload.dateOfBirth !== undefined) cleanPayload.dateOfBirth = payload.dateOfBirth;
+  if (payload.gender !== undefined) cleanPayload.gender = payload.gender;
+  if (payload.address !== undefined) cleanPayload.address = payload.address ? payload.address.trim() : null;
+  if (payload.profilePhotoUrl !== undefined) {
+    cleanPayload.profilePhotoUrl = payload.profilePhotoUrl ? payload.profilePhotoUrl.trim() : null;
+  }
+  if (payload.jobTitle !== undefined) cleanPayload.jobTitle = payload.jobTitle.trim();
+  if (payload.departmentId !== undefined) cleanPayload.departmentId = payload.departmentId;
+  if (payload.dateOfJoining !== undefined) cleanPayload.dateOfJoining = payload.dateOfJoining;
+  if (payload.officeLocationId !== undefined) {
+    cleanPayload.officeLocationId = payload.officeLocationId ? payload.officeLocationId.trim() : '';
+  }
+  if (payload.officeLocationName !== undefined) {
+    cleanPayload.officeLocationName = payload.officeLocationName ? payload.officeLocationName.trim() : '';
+  }
+  if (payload.primaryOfficeId !== undefined) {
+    cleanPayload.primaryOfficeId = payload.primaryOfficeId ? payload.primaryOfficeId.trim() : '';
+  }
+  if (Array.isArray(payload.officeIds)) {
+    cleanPayload.officeIds = payload.officeIds;
+  }
+
+  const response = await api.put<ApiResponse<Employee>>(`${EMPLOYEE_API_URL}/employees/${id}`, cleanPayload);
   return response.data.data;
 }
 
@@ -113,10 +366,11 @@ export async function changeEmployeeStatus(
  * GET /api/v1/departments?limit=100&status=ACTIVE
  */
 export async function fetchActiveDepartments(): Promise<Department[]> {
-  const response = await api.get<ApiResponse<Department[]>>(`${EMPLOYEE_API_URL}/departments`, {
+  const response = await api.get<any>(`${EMPLOYEE_API_URL}/departments`, {
     params: { limit: 100, status: 'ACTIVE' },
   });
-  return response.data.data;
+  const raw = response.data?.data ?? response.data;
+  return Array.isArray(raw) ? raw : (raw?.items || []);
 }
 
 /**
@@ -124,8 +378,9 @@ export async function fetchActiveDepartments(): Promise<Department[]> {
  * GET /api/v1/roles
  */
 export async function fetchRoles(): Promise<Role[]> {
-  const response = await api.get<ApiResponse<Role[]>>(`${EMPLOYEE_API_URL}/roles`);
-  return response.data.data;
+  const response = await api.get<any>(`${EMPLOYEE_API_URL}/roles`);
+  const raw = response.data?.data ?? response.data;
+  return Array.isArray(raw) ? raw : (raw?.items || []);
 }
 
 /**
@@ -161,14 +416,54 @@ export async function changeDeviceStatus(
 /**
  * Resends temporary credentials or resets password and notifies employee.
  * POST /api/v1/employees/:id/resend-credentials
+ * Synchronizes the generated temporary password to auth-service so that login works immediately.
  */
 export async function resendCredentials(
   id: string,
 ): Promise<{ success: boolean; message: string; deliveredTo?: string }> {
-  const response = await api.post<ApiResponse<{ success: boolean; message: string; deliveredTo?: string }>>(
+  const response = await api.post<ApiResponse<{ success: boolean; message: string; deliveredTo?: string; temporaryPassword?: string }>>(
     `${EMPLOYEE_API_URL}/employees/${id}/resend-credentials`,
   );
-  return response.data.data;
+  const data = response.data.data;
+
+  // Synchronize the newly generated temporary password to auth-service!
+  if (data?.temporaryPassword) {
+    try {
+      const emp = await fetchEmployeeById(id);
+      let userId = emp.userId;
+      if (!userId) {
+        // Query auth-service by email to locate user
+        const usersRes = await api.get<Array<{ id: string; email: string }>>('/auth/users', {
+          params: { search: emp.email },
+        });
+        const users = Array.isArray(usersRes.data) ? usersRes.data : [];
+        const match = users.find((u) => u.email.toLowerCase() === emp.email.toLowerCase());
+        userId = match?.id;
+      }
+
+      if (userId) {
+        await api.post(`/auth/users/${userId}/reset-password`, {
+          temporaryPassword: data.temporaryPassword,
+        });
+      } else {
+        // If user didn't exist in auth-service yet, provision them now with this password
+        const username = emp.employeeCode.toLowerCase().replace(/[^a-zA-Z0-9._-]/g, '_');
+        const role = emp.role?.name === 'HR_ADMIN' || emp.email.includes('.hr@') ? 'HR_ADMIN' : 'EMPLOYEE';
+        await api.post('/auth/users', {
+          username,
+          email: emp.email,
+          fullName: `${emp.firstName} ${emp.lastName}`.trim(),
+          password: data.temporaryPassword,
+          roles: [role],
+          mustChangePassword: true,
+        });
+      }
+    } catch (syncErr) {
+      console.warn('Could not sync temporary password to auth-service:', syncErr);
+    }
+  }
+
+  return data;
 }
 
 /**

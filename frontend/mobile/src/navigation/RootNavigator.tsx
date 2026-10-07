@@ -3,17 +3,19 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { RoleBasedRoute } from '../components/RoleBasedRoute';
 import { useAuth } from '../context/AuthContext';
-import AdminHomeScreen from '../screens/AdminHomeScreen';
 import EmployeeHomeScreen from '../screens/EmployeeHomeScreen';
-import HrHomeScreen from '../screens/HrHomeScreen';
+import AttendanceHistoryScreen from '../screens/AttendanceHistoryScreen';
+import ProfileCompletionScreen from '../screens/ProfileCompletionScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
 import LoginScreen from '../screens/LoginScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
+import FaceRegistrationScreen from '../screens/FaceRegistrationScreen';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-// Each module screen is wrapped twice: logged in + correct role.
-function EmployeeScreen() {
+function ProtectedEmployeeScreen() {
   return (
     <ProtectedRoute>
       <RoleBasedRoute allowedRoles={['EMPLOYEE']}>
@@ -23,39 +25,55 @@ function EmployeeScreen() {
   );
 }
 
-function AdminScreen() {
+function ProtectedHistoryScreen() {
   return (
     <ProtectedRoute>
-      <RoleBasedRoute allowedRoles={['ADMIN']}>
-        <AdminHomeScreen />
+      <RoleBasedRoute allowedRoles={['EMPLOYEE']}>
+        <AttendanceHistoryScreen />
       </RoleBasedRoute>
     </ProtectedRoute>
   );
 }
 
-function HrScreen() {
+function ProtectedProfileScreen() {
   return (
     <ProtectedRoute>
-      <RoleBasedRoute allowedRoles={['HR']}>
-        <HrHomeScreen />
+      <RoleBasedRoute allowedRoles={['EMPLOYEE']}>
+        <ProfileScreen />
+      </RoleBasedRoute>
+    </ProtectedRoute>
+  );
+}
+
+function ProtectedNotificationsScreen() {
+  return (
+    <ProtectedRoute>
+      <RoleBasedRoute allowedRoles={['EMPLOYEE']}>
+        <NotificationsScreen />
       </RoleBasedRoute>
     </ProtectedRoute>
   );
 }
 
 /**
- * The screens that exist depend on the auth state (the recommended React Navigation pattern):
- *   loading            -> splash
- *   logged out         -> Login
- *   mustChangePassword -> ResetPassword   (comes from the BACKEND, every time)
- *   ADMIN / HR / EMPLOYEE -> only their own module screen is registered
- * When the state changes, the navigator switches screens automatically.
+ * Root Navigator for the Momo HRMS Employee Mobile Application.
+ *
+ * Platform Rule:
+ *  - Mobile is strictly reserved for EMPLOYEE accounts.
+ *  - ADMIN & HR are blocked at login & session restoration in AuthContext.
+ *
+ * Flow:
+ *  1. Unauthenticated -> LoginScreen
+ *  2. mustChangePassword === true -> ResetPasswordScreen (forced, non-bypassable)
+ *  3. Incomplete profile -> ProfileCompletionScreen (DOB, phone, gender, address)
+ *  4. Incomplete face biometrics -> FaceRegistrationScreen (once only)
+ *  5. Complete profile & biometrics -> EmployeeHomeScreen & AttendanceHistoryScreen
  */
 export function RootNavigator() {
-  const { status, user } = useAuth();
+  const { status, user, isProfileComplete, isFaceEnrolled } = useAuth();
 
   if (status === 'loading') {
-    return <LoadingIndicator fullScreen message="Restoring your session..." />;
+    return <LoadingIndicator fullScreen message="Loading Momo HRMS..." />;
   }
 
   return (
@@ -64,12 +82,17 @@ export function RootNavigator() {
         <Stack.Screen name="Login" component={LoginScreen} />
       ) : user.mustChangePassword ? (
         <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-      ) : user.appRole === 'ADMIN' ? (
-        <Stack.Screen name="AdminHome" component={AdminScreen} />
-      ) : user.appRole === 'HR' ? (
-        <Stack.Screen name="HrHome" component={HrScreen} />
+      ) : !isProfileComplete ? (
+        <Stack.Screen name="ProfileCompletion" component={ProfileCompletionScreen} />
+      ) : !isFaceEnrolled ? (
+        <Stack.Screen name="FaceRegistration" component={FaceRegistrationScreen} />
       ) : (
-        <Stack.Screen name="EmployeeHome" component={EmployeeScreen} />
+        <>
+          <Stack.Screen name="EmployeeHome" component={ProtectedEmployeeScreen} />
+          <Stack.Screen name="AttendanceHistory" component={ProtectedHistoryScreen} />
+          <Stack.Screen name="Profile" component={ProtectedProfileScreen} />
+          <Stack.Screen name="Notifications" component={ProtectedNotificationsScreen} />
+        </>
       )}
     </Stack.Navigator>
   );

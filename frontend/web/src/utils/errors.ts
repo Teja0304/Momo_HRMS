@@ -16,6 +16,21 @@ export function getErrorMessage(
     const { status, data } = error.response;
     if (status === 429) return 'Too many attempts. Please wait a minute and try again.';
 
+    const errorObj = (data as Record<string, unknown> | undefined)?.error as
+      | { message?: string; details?: Array<{ path?: string; message?: string }> }
+      | undefined;
+    if (errorObj) {
+      if (Array.isArray(errorObj.details) && errorObj.details.length > 0) {
+        const detailLines = errorObj.details
+          .map((d) => (d.path ? `${d.path}: ${d.message}` : d.message))
+          .join(', ');
+        return `${errorObj.message || 'Validation error'}: ${detailLines}`;
+      }
+      if (typeof errorObj.message === 'string' && errorObj.message.length > 0) {
+        return errorObj.message;
+      }
+    }
+
     const message = data?.message;
     if (Array.isArray(message) && message.length > 0) return message.join('\n');
     if (typeof message === 'string' && message.length > 0) return message;

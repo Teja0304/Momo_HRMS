@@ -30,14 +30,36 @@ function unwrapResponse<T>(resData: T | BackendEnvelope<T>): T {
 }
 
 /**
- * Fetches today's attendance summary for the authenticated user/employee.
+ * Fetches today's attendance summary for the authenticated user/employee or all employees.
  * GET /api/v1/attendance/today
  */
-export async function fetchTodayAttendance(): Promise<TodayAttendanceResponse> {
+export async function fetchTodayAttendance(
+  options?: { all?: boolean; employeeId?: string },
+): Promise<TodayAttendanceResponse> {
+  const params: Record<string, string> = {};
+  if (options?.all) params.all = 'true';
+  if (options?.employeeId) params.employeeId = options.employeeId;
+
   const response = await api.get<TodayAttendanceResponse | BackendEnvelope<TodayAttendanceResponse>>(
     `${ATTENDANCE_API_URL}/today`,
+    { params },
   );
   return unwrapResponse(response.data);
+}
+
+/**
+ * Fetches today's attendance sessions across all employees (for HR & Admin dashboards).
+ * GET /api/v1/attendance/all-today or /today?all=true
+ */
+export async function fetchCompanyTodayAttendance(): Promise<TodayAttendanceResponse> {
+  try {
+    const response = await api.get<TodayAttendanceResponse | BackendEnvelope<TodayAttendanceResponse>>(
+      `${ATTENDANCE_API_URL}/all-today`,
+    );
+    return unwrapResponse(response.data);
+  } catch {
+    return fetchTodayAttendance({ all: true });
+  }
 }
 
 /**
@@ -45,19 +67,45 @@ export async function fetchTodayAttendance(): Promise<TodayAttendanceResponse> {
  * GET /api/v1/attendance/history?startDate=...&endDate=...&page=...&limit=...
  */
 export async function fetchAttendanceHistory(
-  query: HistoryQuery = {},
+  query: HistoryQuery & { all?: boolean; employeeId?: string } = {},
 ): Promise<PaginatedHistoryResponse> {
   const params: Record<string, string | number> = {};
   if (query.startDate) params.startDate = query.startDate;
   if (query.endDate) params.endDate = query.endDate;
   if (query.page) params.page = query.page;
   if (query.limit) params.limit = query.limit;
+  if (query.all) params.all = 'true';
+  if (query.employeeId) params.employeeId = query.employeeId;
 
   const response = await api.get<PaginatedHistoryResponse | BackendEnvelope<PaginatedHistoryResponse>>(
     `${ATTENDANCE_API_URL}/history`,
     { params },
   );
   return unwrapResponse(response.data);
+}
+
+/**
+ * Fetches attendance history across all employees for organizational reports and dashboards.
+ * GET /api/v1/attendance/all-history
+ */
+export async function fetchCompanyAttendanceHistory(
+  query: HistoryQuery = {},
+): Promise<PaginatedHistoryResponse> {
+  try {
+    const params: Record<string, string | number> = {};
+    if (query.startDate) params.startDate = query.startDate;
+    if (query.endDate) params.endDate = query.endDate;
+    if (query.page) params.page = query.page;
+    if (query.limit) params.limit = query.limit;
+
+    const response = await api.get<PaginatedHistoryResponse | BackendEnvelope<PaginatedHistoryResponse>>(
+      `${ATTENDANCE_API_URL}/all-history`,
+      { params },
+    );
+    return unwrapResponse(response.data);
+  } catch {
+    return fetchAttendanceHistory({ ...query, all: true });
+  }
 }
 
 /**
@@ -161,3 +209,32 @@ export function getCurrentCoordinates(): Promise<LocationCoordinates> {
     );
   });
 }
+
+/**
+ * Approves or rejects an attendance exception (e.g. special condition working hours request).
+ * POST /api/v1/attendance/exceptions/:id/approve
+ */
+export async function approveAttendanceException(
+  exceptionId: string,
+  payload: { status: 'APPROVED' | 'REJECTED'; comment?: string },
+): Promise<any> {
+  const response = await api.post(
+    `${ATTENDANCE_API_URL}/exceptions/${exceptionId}/approve`,
+    payload,
+  );
+  return unwrapResponse(response.data);
+}
+
+/**
+ * Fetches attendance exceptions (special working-hours requests, etc.) for an employee.
+ * GET /api/v1/attendance/exceptions?employeeId=:id
+ */
+export async function fetchEmployeeExceptions(employeeId: string): Promise<any[]> {
+  const response = await api.get<any[] | BackendEnvelope<any[]>>(
+    `${ATTENDANCE_API_URL}/exceptions`,
+    { params: { employeeId } },
+  );
+  const data = unwrapResponse(response.data);
+  return Array.isArray(data) ? data : (data as any)?.items || [];
+}
+

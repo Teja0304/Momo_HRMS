@@ -278,6 +278,8 @@ export default function AttendanceDashboardPage() {
           <AttendanceSummaryCards
             todaySession={activeSession ?? (todayData?.sessions?.[0] ?? null)}
             totalWorkingSecondsToday={todayData?.totalWorkingSecondsToday ?? 0}
+            totalRegularWorkingSecondsToday={todayData?.totalRegularWorkingSecondsToday}
+            totalSpecialConditionSecondsToday={todayData?.totalSpecialConditionSecondsToday}
             hasActiveSession={Boolean(todayData?.hasActiveSession)}
             liveWorkingSeconds={liveWorkingSeconds}
           />

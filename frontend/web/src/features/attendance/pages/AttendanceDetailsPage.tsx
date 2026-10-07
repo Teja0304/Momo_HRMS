@@ -6,6 +6,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import Paper from '@mui/material/Paper';
@@ -20,6 +21,7 @@ import Typography from '@mui/material/Typography';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import PauseCircleIcon from '@mui/icons-material/PauseCircle';
+import VerifiedIcon from '@mui/icons-material/Verified';
 import { DashboardLayout } from '../../../components/DashboardLayout';
 import { fetchAttendanceById } from '../services/attendanceService';
 import type { AttendanceSession } from '../types/attendance';
@@ -177,6 +179,73 @@ export default function AttendanceDetailsPage() {
                     Checkout Mode: <strong>{session.checkoutType ?? 'NORMAL'}</strong>
                     {session.checkoutReason && <> — Reason: <em>{session.checkoutReason}</em></>}
                   </Typography>
+                </Box>
+              )}
+
+              {session.hasSpecialCondition && (
+                <Box
+                  sx={{
+                    mt: 2.5,
+                    p: 2,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'secondary.light',
+                    bgcolor: 'secondary.50',
+                    background: 'linear-gradient(135deg, rgba(245, 243, 255, 0.7) 0%, rgba(237, 233, 254, 0.5) 100%)',
+                  }}
+                >
+                  <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                      <VerifiedIcon color="secondary" sx={{ fontSize: 20 }} />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'secondary.dark' }}>
+                        SPECIAL CONDITION WORKING HOURS (HR APPROVED)
+                      </Typography>
+                    </Stack>
+                    <Chip
+                      size="small"
+                      label={session.specialConditionStatus || 'HR Approved'}
+                      color="secondary"
+                      sx={{ fontWeight: 700 }}
+                    />
+                  </Stack>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
+                      gap: 2,
+                      mt: 1.5,
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Regular Working Duration
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                        {formatDuration(session.regularWorkingSeconds ?? (session.totalWorkingSeconds - (session.specialConditionSeconds || 0)))}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Special Condition Credit
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace', color: 'secondary.dark' }}>
+                        +{formatDuration(session.specialConditionSeconds || 0)}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Total Final Duration
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 800, fontFamily: 'monospace', color: 'primary.main' }}>
+                        {formatDuration(session.totalWorkingSeconds)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  {session.specialConditionReason && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
+                      Reason: "{session.specialConditionReason}"
+                    </Typography>
+                  )}
                 </Box>
               )}
             </CardContent>

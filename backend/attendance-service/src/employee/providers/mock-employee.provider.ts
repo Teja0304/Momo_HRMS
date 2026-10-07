@@ -20,4 +20,8 @@ export class MockEmployeeProvider implements EmployeeProvider {
   async isAssignedToOffice(employeeId: string, officeId: string): Promise<boolean> {
     return !this.deniedPairs.has(`${employeeId}:${officeId}`);
   }
+
+  async resolveEmployeeIdentifiers(employeeId: string): Promise<string[]> {
+    return [employeeId];
+  }
 }

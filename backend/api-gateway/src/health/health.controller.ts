@@ -12,6 +12,7 @@ export class HealthController {
       geofence: this.configService.get<string>('services.geofence', 'http://localhost:3003'),
       employee: this.configService.get<string>('services.employee', 'http://localhost:3004'),
       notification: this.configService.get<string>('services.notification', 'http://localhost:3005'),
+      face: this.configService.get<string>('services.face', 'http://localhost:3006'),
     };
   }
 

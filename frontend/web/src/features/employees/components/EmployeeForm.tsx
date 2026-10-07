@@ -2,6 +2,8 @@ import { useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import FormControl from '@mui/material/FormControl';
@@ -15,15 +17,18 @@ import Typography from '@mui/material/Typography';
 import type {
   CreateEmployeePayload,
   Department,
+  EmploymentType,
   Gender,
   Role,
 } from '../../../types/employee';
+import type { Office } from '../../geofence/types/geofence';
 
 interface Props {
   mode: 'create' | 'edit';
   initialValues?: Partial<CreateEmployeePayload>;
   departments: Department[];
   roles: Role[];
+  offices?: Office[];
   onSubmit: (values: CreateEmployeePayload) => Promise<void>;
   onCancel: () => void;
   loading?: boolean;
@@ -35,6 +40,7 @@ export function EmployeeForm({
   initialValues,
   departments,
   roles,
+  offices = [],
   onSubmit,
   onCancel,
   loading = false,
@@ -46,10 +52,20 @@ export function EmployeeForm({
     lastName: initialValues?.lastName ?? '',
     email: initialValues?.email ?? '',
     personalEmail: initialValues?.personalEmail ?? '',
+    employmentType: initialValues?.employmentType ?? 'EMPLOYEE',
     phone: initialValues?.phone ?? '',
     jobTitle: initialValues?.jobTitle ?? '',
     departmentId: initialValues?.departmentId ?? '',
     roleId: initialValues?.roleId ?? '',
+    officeLocationId: initialValues?.officeLocationId ?? '',
+    officeLocationName: initialValues?.officeLocationName ?? '',
+    primaryOfficeId: initialValues?.primaryOfficeId ?? '',
+    officeIds:
+      initialValues?.officeIds && initialValues.officeIds.length > 0
+        ? initialValues.officeIds
+        : initialValues?.officeLocationId
+        ? [initialValues.officeLocationId]
+        : [],
     dateOfJoining: initialValues?.dateOfJoining ?? new Date().toISOString().slice(0, 10),
     dateOfBirth: initialValues?.dateOfBirth ?? '',
     gender: (initialValues?.gender as Gender) ?? undefined,
@@ -78,13 +94,15 @@ export function EmployeeForm({
       nextErrors.lastName = 'Last name is required';
     }
 
-    if (!formData.email.trim()) {
+    if (!formData.email?.trim()) {
       nextErrors.email = 'Official email address is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
       nextErrors.email = 'Enter a valid official email address';
     }
 
-    if (formData.personalEmail?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.personalEmail.trim())) {
+    if (!formData.personalEmail?.trim()) {
+      nextErrors.personalEmail = 'Personal email address is required for credential delivery';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.personalEmail.trim())) {
       nextErrors.personalEmail = 'Enter a valid personal email address';
     }
 
@@ -116,18 +134,29 @@ export function EmployeeForm({
     e.preventDefault();
     if (!validate()) return;
 
+    const selectedOffices = offices.filter((o) =>
+      (formData.officeIds || []).includes(o.id) || (formData.officeIds || []).includes(o.code)
+    );
+    const primaryOffice = selectedOffices[0];
+    const officeIds = selectedOffices.flatMap((o) => [o.id, o.code]).filter(Boolean) as string[];
+    const officeLocationName = selectedOffices.map((o) => (o.name ? `${o.name} (${o.code})` : o.code)).join(', ');
+
     await onSubmit({
       ...formData,
       employeeCode: formData.employeeCode.trim().toUpperCase(),
       firstName: formData.firstName.trim(),
       lastName: formData.lastName.trim(),
-      email: formData.email.trim(),
-      personalEmail: formData.personalEmail?.trim() || undefined,
+      email: formData.email?.trim() || '',
+      personalEmail: formData.personalEmail?.trim() || '',
       phone: formData.phone.trim(),
       jobTitle: formData.jobTitle.trim(),
       dateOfBirth: formData.dateOfBirth || undefined,
       address: formData.address?.trim() || undefined,
       profilePhotoUrl: formData.profilePhotoUrl?.trim() || undefined,
+      officeLocationId: primaryOffice?.id || formData.officeIds?.[0] || undefined,
+      officeLocationName: officeLocationName || formData.officeLocationName || undefined,
+      primaryOfficeId: primaryOffice?.id || formData.officeIds?.[0] || undefined,
+      officeIds: officeIds.length > 0 ? officeIds : formData.officeIds || [],
       provisionAccount: formData.provisionAccount ?? true,
     });
   };
@@ -187,6 +216,20 @@ export function EmployeeForm({
             fullWidth
           />
 
+          <FormControl fullWidth required disabled={loading}>
+            <InputLabel id="emp-type-label">Employment Type</InputLabel>
+            <Select
+              labelId="emp-type-label"
+              value={formData.employmentType ?? 'EMPLOYEE'}
+              label="Employment Type *"
+              onChange={(e) => setFormData((prev) => ({ ...prev, employmentType: e.target.value as EmploymentType }))}
+            >
+              <MenuItem value="EMPLOYEE">Employee (@company.com)</MenuItem>
+              <MenuItem value="INTERN">Intern (@company.in)</MenuItem>
+            </Select>
+            <FormHelperText>Controls official company email domain extension</FormHelperText>
+          </FormControl>
+
           <FormControl fullWidth required error={Boolean(errors.departmentId)} disabled={loading}>
             <InputLabel id="dept-select-label">Department</InputLabel>
             <Select
@@ -204,7 +247,7 @@ export function EmployeeForm({
             {errors.departmentId && <FormHelperText>{errors.departmentId}</FormHelperText>}
           </FormControl>
 
-          <FormControl fullWidth required error={Boolean(errors.roleId)} disabled={loading || mode === 'edit'}>
+          <FormControl fullWidth required error={Boolean(errors.roleId)} disabled={loading}>
             <InputLabel id="role-select-label">Role</InputLabel>
             <Select
               labelId="role-select-label"
@@ -219,7 +262,72 @@ export function EmployeeForm({
               ))}
             </Select>
             <FormHelperText>
-              {errors.roleId ?? (mode === 'edit' ? 'Organizational role cannot be modified after creation' : undefined)}
+              {errors.roleId ?? 'Organizational role assigned to this employee'}
+            </FormHelperText>
+          </FormControl>
+
+          <FormControl fullWidth disabled={loading}>
+            <InputLabel id="office-select-label">Assigned Office Locations</InputLabel>
+            <Select
+              labelId="office-select-label"
+              multiple
+              value={
+                (formData.officeIds || [])
+                  .map((idOrCode) => {
+                    const matched = offices.find(
+                      (o) => o.id === idOrCode || o.code?.toLowerCase() === idOrCode.toLowerCase()
+                    );
+                    return matched ? matched.id : idOrCode;
+                  })
+                  .filter((val, idx, arr) => arr.indexOf(val) === idx)
+              }
+              label="Assigned Office Locations"
+              onChange={(e) => {
+                const val = e.target.value;
+                const ids = typeof val === 'string' ? val.split(',') : (val as string[]);
+                setFormData((prev) => ({
+                  ...prev,
+                  officeIds: ids,
+                }));
+              }}
+              renderValue={(selected) => (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {(selected as string[]).map((id, idx) => {
+                    const off = offices.find((o) => o.id === id);
+                    return (
+                      <Chip
+                        key={id}
+                        label={`${off ? off.name : id}${idx === 0 ? ' (Primary)' : ''}`}
+                        size="small"
+                        color={idx === 0 ? 'primary' : 'default'}
+                      />
+                    );
+                  })}
+                </Box>
+              )}
+            >
+              {offices.map((office) => {
+                const currentIds = (formData.officeIds || []).map((idOrCode) => {
+                  const matched = offices.find(
+                    (o) => o.id === idOrCode || o.code?.toLowerCase() === idOrCode.toLowerCase()
+                  );
+                  return matched ? matched.id : idOrCode;
+                });
+                const isChecked = currentIds.indexOf(office.id) > -1;
+                return (
+                  <MenuItem key={office.id} value={office.id}>
+                    <Checkbox checked={isChecked} />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>{office.name}</Typography>
+                      <Chip label={office.code} size="small" variant="outlined" />
+                      {office.city && <Typography variant="caption" color="text.secondary">({office.city})</Typography>}
+                    </Box>
+                  </MenuItem>
+                );
+              })}
+            </Select>
+            <FormHelperText>
+              Workplace locations where the employee can work and mark attendance (first selected is Primary)
             </FormHelperText>
           </FormControl>
 

@@ -1,5 +1,7 @@
 export type EmploymentStatus = 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' | 'SUSPENDED' | 'TERMINATED';
 
+export type EmploymentType = 'EMPLOYEE' | 'INTERN';
+
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER' | 'PREFER_NOT_TO_SAY';
 
 export type DeviceType = 'ANDROID' | 'IOS' | 'WEB' | 'OTHER';
@@ -54,9 +56,24 @@ export interface Employee {
   jobTitle: string;
   department: DepartmentRef;
   role: RoleRef;
+  officeLocationId?: string | null;
+  officeLocationName?: string | null;
+  primaryOfficeId?: string | null;
+  assignedOffice?: { id: string; name: string; code?: string } | null;
+  assignedOffices?: Array<{ id: string; name: string; code?: string; isPrimary?: boolean; isActive?: boolean }>;
+  officeIds?: string[];
+  officeLocationNames?: string[];
+  assignments?: Array<{ id: string; officeId: string; isPrimary?: boolean; isActive?: boolean; office?: { id: string; name: string; code?: string } }>;
+  employmentType?: EmploymentType;
   status: EmploymentStatus;
   hasAccount?: boolean;
   credentialsSentAt?: string | null;
+  credentialDelivery?: {
+    delivered: boolean;
+    mode: 'smtp' | 'console' | 'failed';
+    deliveredTo: string;
+    message: string;
+  };
   createdAt: string;
   updatedAt: string;
   userId?: string | null;
@@ -113,8 +130,9 @@ export interface CreateEmployeePayload {
   employeeCode: string;
   firstName: string;
   lastName: string;
-  email: string;
-  personalEmail?: string;
+  email?: string;
+  personalEmail: string;
+  employmentType?: EmploymentType;
   phone: string;
   dateOfBirth?: string;
   gender?: Gender;
@@ -124,6 +142,10 @@ export interface CreateEmployeePayload {
   jobTitle: string;
   departmentId: string;
   roleId: string;
+  officeLocationId?: string | null;
+  officeLocationName?: string | null;
+  primaryOfficeId?: string | null;
+  officeIds?: string[];
   userId?: string;
   provisionAccount?: boolean;
 }
@@ -133,13 +155,19 @@ export interface UpdateEmployeePayload {
   lastName?: string;
   email?: string;
   personalEmail?: string | null;
+  employmentType?: EmploymentType;
   phone?: string;
   dateOfBirth?: string | null;
   gender?: Gender | null;
   address?: string | null;
   profilePhotoUrl?: string | null;
+  dateOfJoining?: string;
   jobTitle?: string;
   departmentId?: string;
+  officeLocationId?: string | null;
+  officeLocationName?: string | null;
+  primaryOfficeId?: string | null;
+  officeIds?: string[];
 }
 
 export interface ChangeEmployeeStatusPayload {
@@ -162,6 +190,9 @@ export interface ValidatedImportRow {
     jobTitle: string;
     department: string;
     role: string;
+    officeLocations?: string;
+    resolvedOfficeIds?: string[];
+    resolvedOfficeNames?: string[];
     dateOfBirth?: string;
     gender?: Gender;
     address?: string;

@@ -10,5 +10,6 @@ export default () => ({
     geofence: process.env.GEOFENCE_SERVICE_URL || 'http://localhost:3003',
     employee: process.env.EMPLOYEE_SERVICE_URL || 'http://localhost:3004',
     notification: process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3005',
+    face: process.env.FACE_SERVICE_URL || 'http://localhost:3006',
   },
 });

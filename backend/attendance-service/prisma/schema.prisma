@@ -103,6 +103,7 @@ model AttendanceSession {
 
   pauses AttendancePause[]
   events AttendanceEvent[]
+  exceptions AttendanceException[]
 
   @@index([employeeId])
   @@index([attendanceDate])
@@ -156,6 +157,45 @@ model AttendanceEvent {
   @@map("attendance_events")
 }
 
+enum ExceptionType {
+  RECHECK_IN
+  EXTRA_GRACE
+  OFFICE_TRANSFER
+  WORKING_TIME_ADJUSTMENT
+}
+
+enum ExceptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  USED
+}
+
+model AttendanceException {
+  id                  String          @id @default(uuid())
+  employeeId          String          @map("employee_id") @db.VarChar(64)
+  attendanceDate      DateTime        @map("attendance_date") @db.Date
+  attendanceSessionId String?         @map("attendance_session_id") @db.VarChar(64)
+  type                ExceptionType
+  reason              String          @db.VarChar(255)
+  validFrom           DateTime        @map("valid_from")
+  validUntil          DateTime        @map("valid_until")
+  approvedByUserId    String?         @map("approved_by_user_id") @db.VarChar(64)
+  approvedAt          DateTime?       @map("approved_at")
+  status              ExceptionStatus @default(PENDING)
+  metadata            Json?
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  session AttendanceSession? @relation(fields: [attendanceSessionId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId])
+  @@index([attendanceDate])
+  @@index([status])
+  @@map("attendance_exceptions")
+}
+
 /// Not a business entity — a per-employee "ticket" row used purely so a
 /// check-in transaction can issue `SELECT ... FOR UPDATE` against a
 /// single row per employee, serializing concurrent check-in attempts
@@ -167,3 +207,4 @@ model EmployeeAttendanceLock {
 
   @@map("employee_attendance_locks")
 }
+

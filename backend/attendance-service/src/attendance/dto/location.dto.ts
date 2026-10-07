@@ -28,4 +28,8 @@ export class LocationDto {
   @ApiProperty({ example: '2026-09-22T09:32:10Z' })
   @IsDateString()
   timestamp: string;
+
+  @ApiProperty({ required: false, example: false, description: 'True if GPS coordinates originated from a mock/spoofed provider on device' })
+  @IsOptional()
+  isMocked?: boolean;
 }

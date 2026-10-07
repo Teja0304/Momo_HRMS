@@ -66,13 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
 
         const restored = toAuthUser(session.user);
-        if (!restored.appRole || restored.appRole === 'EMPLOYEE') {
+        if (!restored.appRole) {
           await clearTokens();
-          endSession(
-            restored.appRole === 'EMPLOYEE'
-              ? 'Access Restricted: The web portal is only accessible to Admin and HR staff. Employees must log in through the Momo HRMS mobile app.'
-              : NO_MODULE_MESSAGE,
-          );
+          endSession(NO_MODULE_MESSAGE);
           return;
         }
         setUser(restored);
@@ -94,14 +90,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await saveTokens(session.accessToken, session.refreshToken);
 
     const loggedIn = toAuthUser(session.user);
-    if (!loggedIn.appRole || loggedIn.appRole === 'EMPLOYEE') {
+    if (!loggedIn.appRole) {
       await logoutUser(); // don't leave a live session for an account we can't route
       await clearTokens();
-      throw new Error(
-        loggedIn.appRole === 'EMPLOYEE'
-          ? 'Access Restricted: The web portal is only accessible to Admin and HR staff. Employees must log in through the Momo HRMS mobile app.'
-          : NO_MODULE_MESSAGE,
-      );
+      throw new Error(NO_MODULE_MESSAGE);
     }
 
     setNotice(null);
@@ -130,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('The server did not confirm the password change. Please try again.');
     }
     setUser(fresh);
-    setNotice('Your password was updated successfully.');
+    setNotice('Password updated successfully.');
   }, []);
 
   const logout = useCallback(async () => {

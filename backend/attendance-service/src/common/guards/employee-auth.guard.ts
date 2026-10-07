@@ -1,38 +1,30 @@
 import { CanActivate, ExecutionContext, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { AppConfig } from '../../config/configuration';
 import { EmployeeAuthContext } from '../interfaces/employee-auth-context.interface';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
-/**
- * Resolves WHO is calling, for every route (this is not an RBAC guard —
- * the Attendance Service does not own roles/permissions; it only reads
- * whatever the Auth Service already decided and the Gateway forwards).
- *
- * Two modes, controlled by ATTENDANCE_DEV_AUTH:
- *
- *  - DEV MODE (ATTENDANCE_DEV_AUTH=true): trusts X-Employee-Id /
- *    X-User-Id / X-Roles headers verbatim, with no verification, falling
- *    back to a configured default employee id if headers are omitted.
- *    Logs a loud warning on every request so it's impossible to miss
- *    that dev auth is active. NEVER enable this in a deployed environment.
- *
- *  - PRODUCTION MODE (ATTENDANCE_DEV_AUTH=false): requires the same
- *    identity headers, but ALSO requires a shared secret header that
- *    only the API Gateway should know, so a caller can't simply forge
- *    "X-Employee-Id: someone-else" by talking to this service directly.
- *    This is a stopgap until the Gateway does mTLS/service-auth; treat
- *    GATEWAY_SHARED_SECRET as a real secret, not a placeholder, in any
- *    shared environment.
- */
 @Injectable()
 export class EmployeeAuthGuard implements CanActivate {
   private readonly logger = new Logger(EmployeeAuthGuard.name);
   private hasWarnedDevAuth = false;
 
-  constructor(private readonly configService: ConfigService<AppConfig, true>) {}
+  constructor(
+    private readonly configService: ConfigService<AppConfig, true>,
+    private readonly reflector: Reflector,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest<Request>();
     const devAuth = this.configService.get('devAuth', { infer: true });
     const gatewayAuth = this.configService.get('gatewayAuth', { infer: true });
@@ -51,10 +43,20 @@ export class EmployeeAuthGuard implements CanActivate {
       const userId = (request.headers[gatewayAuth.userIdHeader] as string) ?? employeeId;
       const rolesHeader = request.headers[gatewayAuth.rolesHeader] as string | undefined;
 
+      const parseRolesHeader = (header?: string, fallback: string[] = []): string[] => {
+        if (!header) return fallback;
+        const parsed = header
+          .replace(/[\[\]"'\\]/g, '')
+          .split(',')
+          .map((r) => r.trim())
+          .filter(Boolean);
+        return parsed.length > 0 ? parsed : fallback;
+      };
+
       const authContext: EmployeeAuthContext = {
         employeeId,
         userId,
-        roles: rolesHeader ? rolesHeader.split(',').map((r) => r.trim()) : ['EMPLOYEE'],
+        roles: parseRolesHeader(rolesHeader, ['EMPLOYEE']),
         isDevAuth: true,
       };
       (request as Request & { employeeAuth: EmployeeAuthContext }).employeeAuth = authContext;
@@ -74,10 +76,20 @@ export class EmployeeAuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing authenticated identity headers');
     }
 
+    const parseRolesHeader = (header?: string, fallback: string[] = []): string[] => {
+      if (!header) return fallback;
+      const parsed = header
+        .replace(/[\[\]"'\\]/g, '')
+        .split(',')
+        .map((r) => r.trim())
+        .filter(Boolean);
+      return parsed.length > 0 ? parsed : fallback;
+    };
+
     const authContext: EmployeeAuthContext = {
       employeeId,
       userId,
-      roles: rolesHeader ? rolesHeader.split(',').map((r) => r.trim()) : [],
+      roles: parseRolesHeader(rolesHeader, []),
       isDevAuth: false,
     };
     (request as Request & { employeeAuth: EmployeeAuthContext }).employeeAuth = authContext;

@@ -37,6 +37,8 @@ export interface PaginatedNotificationsResponse {
 
 export interface QueryNotificationsParams {
   recipientId?: string;
+  email?: string;
+  role?: string;
   isRead?: boolean;
   page?: number;
   limit?: number;

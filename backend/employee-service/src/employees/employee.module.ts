@@ -1,12 +1,24 @@
 import { Module } from '@nestjs/common';
 import { EmployeeController } from './controllers/employee.controller';
 import { OrganizationController } from './controllers/organization.controller';
+import { DepartmentsController } from './controllers/departments.controller';
+import { RolesController } from './controllers/roles.controller';
+import { DevicesController } from './controllers/devices.controller';
 import { EmployeeService } from './services/employee.service';
 import { OrganizationService } from './services/organization.service';
+import { EmailModule } from '../email/email.module';
 
 @Module({
-  controllers: [EmployeeController, OrganizationController],
+  imports: [EmailModule],
+  controllers: [
+    EmployeeController,
+    OrganizationController,
+    DepartmentsController,
+    RolesController,
+    DevicesController,
+  ],
   providers: [EmployeeService, OrganizationService],
   exports: [EmployeeService, OrganizationService],
 })
 export class EmployeeModule {}
+

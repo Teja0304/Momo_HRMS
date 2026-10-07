@@ -1,7 +1,7 @@
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import IconButton from '@mui/material/IconButton';
+import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
 import Table from '@mui/material/Table';
@@ -11,15 +11,9 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
-import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import BlockIcon from '@mui/icons-material/Block';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PeopleIcon from '@mui/icons-material/People';
-import VpnKeyOutlinedIcon from '@mui/icons-material/VpnKeyOutlined';
 import type { Employee, PageMeta } from '../../../types/employee';
 import { EmployeeStatusBadge } from './EmployeeStatusBadge';
 import { AccountStatusBadge } from './AccountStatusBadge';
@@ -32,10 +26,11 @@ interface Props {
   onPageChange: (newPage: number) => void;
   onRowsPerPageChange: (newLimit: number) => void;
   onView: (id: string) => void;
-  onEdit: (id: string) => void;
-  onToggleStatus: (employee: Employee) => void;
+  onEdit?: (id: string) => void;
+  onToggleStatus?: (employee: Employee) => void;
   onResendCredentials?: (employee: Employee) => void;
   onRetry: () => void;
+  canManage?: boolean;
 }
 
 export function EmployeeTable({
@@ -46,10 +41,11 @@ export function EmployeeTable({
   onPageChange,
   onRowsPerPageChange,
   onView,
-  onEdit,
-  onToggleStatus,
-  onResendCredentials,
+  onEdit: _onEdit,
+  onToggleStatus: _onToggleStatus,
+  onResendCredentials: _onResendCredentials,
   onRetry,
+  canManage: _canManage = true,
 }: Props) {
   if (error) {
     return (
@@ -79,7 +75,6 @@ export function EmployeeTable({
               <TableCell sx={{ fontWeight: 700 }}>Role</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Account</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -112,14 +107,11 @@ export function EmployeeTable({
                   <TableCell>
                     <Skeleton variant="rounded" width={85} height={24} />
                   </TableCell>
-                  <TableCell align="right">
-                    <Skeleton variant="rounded" width={100} height={32} sx={{ ml: 'auto' }} />
-                  </TableCell>
                 </TableRow>
               ))
             ) : employees.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} sx={{ py: 6, textAlign: 'center' }}>
+                <TableCell colSpan={6} sx={{ py: 6, textAlign: 'center' }}>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                     <PeopleIcon sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.5 }} />
                     <Typography variant="h6" color="text.secondary">
@@ -132,15 +124,28 @@ export function EmployeeTable({
                 </TableCell>
               </TableRow>
             ) : (
-              employees.map((emp) => {
-                const initials = `${emp.firstName.charAt(0)}${emp.lastName.charAt(0)}`.toUpperCase();
-                const isActive = emp.status === 'ACTIVE';
+              (Array.isArray(employees) ? employees : []).map((emp) => {
+                const initials = `${emp.firstName?.charAt(0) || ''}${emp.lastName?.charAt(0) || ''}`.toUpperCase() || 'EMP';
+                const isHr = Boolean(
+                  emp.role?.name?.toUpperCase().includes('HR') ||
+                  emp.jobTitle?.toUpperCase().includes('HR') ||
+                  (emp as any).designation?.title?.toUpperCase().includes('HR') ||
+                  emp.email?.toLowerCase().includes('.hr@')
+                );
 
                 return (
                   <TableRow
                     key={emp.id}
                     hover
-                    sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                    onClick={() => onView(emp.id)}
+                    sx={{
+                      cursor: 'pointer',
+                      transition: 'background-color 0.15s ease-in-out',
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      },
+                      '&:last-child td, &:last-child th': { border: 0 },
+                    }}
                   >
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -153,8 +158,7 @@ export function EmployeeTable({
                         <Box>
                           <Typography
                             variant="subtitle2"
-                            sx={{ fontWeight: 600, cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-                            onClick={() => onView(emp.id)}
+                            sx={{ fontWeight: 600, color: 'text.primary' }}
                           >
                             {emp.firstName} {emp.lastName}
                           </Typography>
@@ -166,7 +170,14 @@ export function EmployeeTable({
                     </TableCell>
 
                     <TableCell>
-                      <Typography variant="body2">{emp.email}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: isHr ? 600 : 400 }}>
+                        {emp.email}
+                      </Typography>
+                      {isHr && emp.email.includes('.hr') && (
+                        <Typography variant="caption" sx={{ display: 'block', color: 'primary.main', fontSize: '0.72rem', fontWeight: 600 }}>
+                          Mobile: {emp.email.replace(/\.hr([0-9]*?)@/, '$1@')}
+                        </Typography>
+                      )}
                       {emp.personalEmail && (
                         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.75rem' }}>
                           Personal: {emp.personalEmail}
@@ -181,15 +192,44 @@ export function EmployeeTable({
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>
                         {emp.jobTitle}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                         {emp.department?.name ?? '—'}
                       </Typography>
+                      {emp.assignedOffices && emp.assignedOffices.length > 0 ? (
+                        <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {emp.assignedOffices.map((o) => (
+                            <Chip
+                              key={o.id}
+                              label={o.isPrimary ? `📍 ${o.name}` : o.name}
+                              size="small"
+                              variant={o.isPrimary ? 'filled' : 'outlined'}
+                              color={o.isPrimary ? 'primary' : 'default'}
+                              sx={{ fontSize: '0.68rem', height: 20, fontWeight: o.isPrimary ? 600 : 400 }}
+                            />
+                          ))}
+                        </Box>
+                      ) : emp.officeLocationName ? (
+                        <Typography variant="caption" sx={{ color: 'primary.main', fontSize: '0.72rem', fontWeight: 600, display: 'block', mt: 0.25 }}>
+                          📍 {emp.officeLocationName}
+                        </Typography>
+                      ) : null}
                     </TableCell>
 
                     <TableCell>
-                      <Typography variant="body2">
-                        {emp.role?.name ?? '—'}
-                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
+                        <Typography variant="body2">
+                          {emp.role?.name ?? '—'}
+                        </Typography>
+                        {isHr && (
+                          <Chip
+                            label="Accounts: 2"
+                            size="small"
+                            color="secondary"
+                            variant="outlined"
+                            sx={{ fontWeight: 700, fontSize: '0.68rem', height: 20 }}
+                          />
+                        )}
+                      </Box>
                     </TableCell>
 
                     <TableCell>
@@ -201,56 +241,6 @@ export function EmployeeTable({
                         hasAccount={Boolean(emp.userId || emp.hasAccount)}
                         credentialsSentAt={emp.credentialsSentAt}
                       />
-                    </TableCell>
-
-                    <TableCell align="right">
-                      <Box sx={{ display: 'inline-flex', gap: 0.5 }}>
-                        {onResendCredentials && (
-                          <Tooltip title={emp.userId ? 'Resend Credentials / Reset Password' : 'Provision Portal Account'}>
-                            <IconButton
-                              size="small"
-                              color="secondary"
-                              onClick={() => onResendCredentials(emp)}
-                            >
-                              <VpnKeyOutlinedIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-
-                        <Tooltip title="View Details">
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => onView(emp.id)}
-                          >
-                            <VisibilityOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-
-                        <Tooltip title="Edit Employee">
-                          <IconButton
-                            size="small"
-                            color="info"
-                            onClick={() => onEdit(emp.id)}
-                          >
-                            <EditOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-
-                        <Tooltip title={isActive ? 'Deactivate Employee' : 'Activate Employee'}>
-                          <IconButton
-                            size="small"
-                            color={isActive ? 'error' : 'success'}
-                            onClick={() => onToggleStatus(emp)}
-                          >
-                            {isActive ? (
-                              <BlockIcon fontSize="small" />
-                            ) : (
-                              <CheckCircleIcon fontSize="small" />
-                            )}
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
                     </TableCell>
                   </TableRow>
                 );

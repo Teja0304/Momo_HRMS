@@ -2,6 +2,7 @@ import type { AuthUser } from '../types/auth';
 
 export const PATHS = {
   login: '/login',
+  dashboard: '/dashboard',
   resetPassword: '/reset-password',
   employee: '/employee',
   hr: '/hr',
@@ -24,6 +25,8 @@ export const PATHS = {
   editGeofence: (id: string) => `/geofences/${id}/edit`,
   notifications: '/notifications',
   notificationHistory: '/notifications/history',
+  hrEmployeeReport: (id: string) => `/hr/reports/${id}`,
+  hrEmployeeReportPattern: '/hr/reports/:id',
   unauthorized: '/unauthorized',
 } as const;
 

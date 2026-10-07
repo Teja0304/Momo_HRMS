@@ -12,7 +12,10 @@ export function AttendanceStatusBadge({ status }: AttendanceStatusBadgeProps) {
     case 'PAUSED':
       return <Chip label="Paused (Outside Geofence)" color="warning" size="small" variant="filled" sx={{ fontWeight: 600 }} />;
     case 'COMPLETED':
-      return <Chip label="Completed" color="default" size="small" variant="outlined" sx={{ fontWeight: 600 }} />;
+    case 'CHECKED_OUT':
+      return <Chip label="Checked Out" color="default" size="small" variant="outlined" sx={{ fontWeight: 600 }} />;
+    case 'AUTO_CHECKED_OUT':
+      return <Chip label="Auto Checked Out" color="warning" size="small" variant="outlined" sx={{ fontWeight: 600 }} />;
     default:
       return <Chip label={status} size="small" />;
   }

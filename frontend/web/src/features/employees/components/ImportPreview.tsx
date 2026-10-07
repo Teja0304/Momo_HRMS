@@ -119,6 +119,7 @@ export function ImportPreview({ summary }: Props) {
                 <TableCell sx={{ fontWeight: 700 }}>Official Email</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Personal Email</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Dept / Role</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Assigned Offices</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Validation Messages</TableCell>
               </TableRow>
@@ -157,6 +158,30 @@ export function ImportPreview({ summary }: Props) {
                       <Typography variant="caption" color="text.secondary">
                         {row.data.role}
                       </Typography>
+                    </TableCell>
+                    <TableCell>
+                      {row.data.resolvedOfficeNames && row.data.resolvedOfficeNames.length > 0 ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {row.data.resolvedOfficeNames.map((name, idx) => (
+                            <Chip
+                              key={idx}
+                              label={name}
+                              size="small"
+                              variant={idx === 0 ? 'filled' : 'outlined'}
+                              color={idx === 0 ? 'primary' : 'default'}
+                              sx={{ fontSize: '0.68rem', height: 20 }}
+                            />
+                          ))}
+                        </Box>
+                      ) : row.data.officeLocations ? (
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                          {row.data.officeLocations}
+                        </Typography>
+                      ) : (
+                        <Typography variant="caption" sx={{ color: 'text.disabled' }}>
+                          Default / Primary
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Chip

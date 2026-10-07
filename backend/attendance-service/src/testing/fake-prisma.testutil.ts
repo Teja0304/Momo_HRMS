@@ -107,10 +107,10 @@ export class FakePrismaService {
       this.sessions.push(record);
       return { ...record };
     },
-    findFirst: async ({ where, orderBy }: { where?: Where; orderBy?: any } = {}) => {
+    findFirst: async ({ where, orderBy, include }: { where?: Where; orderBy?: any; include?: { pauses?: boolean } } = {}) => {
       let results = this.sessions.filter((s) => matchesWhere(s, where));
       results = applyOrderBy(results, orderBy);
-      return results[0] ? { ...results[0] } : null;
+      return results[0] ? this.attachIncludes(results[0], include) : null;
     },
     findUnique: async ({ where, include }: { where: { id: string }; include?: { pauses?: boolean } }) => {
       const record = this.sessions.find((s) => s.id === where.id);

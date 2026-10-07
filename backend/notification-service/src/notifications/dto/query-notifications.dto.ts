@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsOptional, IsString, IsBoolean, IsInt, Min, Max } from 'class-validator';
 
 export class QueryNotificationsDto {
@@ -8,9 +8,23 @@ export class QueryNotificationsDto {
   @IsString()
   recipientId?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by recipient Email' })
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by recipient role (e.g. HR, ADMIN, EMPLOYEE)' })
+  @IsOptional()
+  @IsString()
+  role?: string;
+
   @ApiPropertyOptional({ description: 'Filter by read status (true or false)' })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true || value === 1 || value === '1') return true;
+    if (value === 'false' || value === false || value === 0 || value === '0') return false;
+    return undefined;
+  })
   @IsBoolean()
   isRead?: boolean;
 

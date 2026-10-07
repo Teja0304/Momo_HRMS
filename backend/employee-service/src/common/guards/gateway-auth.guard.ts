@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
@@ -32,6 +33,27 @@ export class GatewayAuthGuard implements CanActivate {
 
     if (!gatewayAuth.sharedSecret || providedSecret !== gatewayAuth.sharedSecret) {
       throw new UnauthorizedException('Missing or invalid gateway secret');
+    }
+
+    // Verify HMAC Gateway Request Signature to prevent internal port spoofing
+    const signature = request.headers['x-gateway-signature'] as string | undefined;
+    const timestamp = request.headers['x-gateway-timestamp'] as string | undefined;
+
+    if (signature && timestamp) {
+      const tsNum = parseInt(timestamp, 10);
+      const now = Date.now();
+      if (Math.abs(now - tsNum) > 300000) {
+        throw new UnauthorizedException('Gateway request signature expired (potential replay attack)');
+      }
+      const targetUrl = request.originalUrl || request.url || '';
+      const expectedSig = crypto
+        .createHmac('sha256', gatewayAuth.sharedSecret)
+        .update(`${targetUrl}:${timestamp}:${gatewayAuth.sharedSecret}`)
+        .digest('hex');
+
+      if (signature !== expectedSig) {
+        throw new UnauthorizedException('Invalid HMAC gateway signature');
+      }
     }
 
     return true;

@@ -15,6 +15,7 @@ import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { DashboardLayout } from '../../../components/DashboardLayout';
+import { useAuth } from '../../../context/AuthContext';
 import { PATHS } from '../../../routes/paths';
 import {
   changeEmployeeStatus,
@@ -36,6 +37,8 @@ import { EmployeeTable } from '../components/EmployeeTable';
 
 export default function EmployeeListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.appRole === 'ADMIN';
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [meta, setMeta] = useState<PageMeta>({ page: 1, limit: 20, total: 0, totalPages: 1 });
@@ -91,7 +94,7 @@ export default function EmployeeListPage() {
           status: (status as EmploymentStatus) || undefined,
         };
         const res = await fetchEmployees(query);
-        setEmployees(res.data);
+        setEmployees(Array.isArray(res.data) ? res.data : []);
         setMeta(res.meta);
       } catch (err: unknown) {
         const msg =
@@ -122,7 +125,7 @@ export default function EmployeeListPage() {
         };
         const res = await fetchEmployees(query);
         if (active) {
-          setEmployees(res.data);
+          setEmployees(Array.isArray(res.data) ? res.data : []);
           setMeta(res.meta);
         }
       } catch (err: unknown) {
@@ -204,26 +207,28 @@ export default function EmployeeListPage() {
         <Button
           startIcon={<ArrowBackIcon />}
           color="inherit"
-          onClick={() => navigate(PATHS.admin)}
+          onClick={() => navigate(user?.appRole === 'HR' ? PATHS.hr : PATHS.admin)}
         >
-          Back to Dashboard
+          Back to {user?.appRole === 'ADMIN' ? 'Admin Dashboard' : 'Dashboard'}
         </Button>
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <Button
-            variant="outlined"
-            startIcon={<CloudUploadIcon />}
-            onClick={() => navigate(PATHS.importEmployees)}
-          >
-            Bulk Import
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => navigate(PATHS.addEmployee)}
-          >
-            Add Employee
-          </Button>
-        </Box>
+        {isAdmin && (
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Button
+              variant="outlined"
+              startIcon={<CloudUploadIcon />}
+              onClick={() => navigate(PATHS.importEmployees)}
+            >
+              Bulk Import
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => navigate(PATHS.addEmployee)}
+            >
+              Add Employee
+            </Button>
+          </Box>
+        )}
       </Box>
 
       <EmployeeFilters
@@ -246,6 +251,7 @@ export default function EmployeeListPage() {
         meta={meta}
         loading={loading}
         error={error}
+        canManage={isAdmin}
         onPageChange={(page) => loadEmployees(page, meta.limit)}
         onRowsPerPageChange={(limit) => {
           setMeta((prev) => ({ ...prev, limit, page: 1 }));

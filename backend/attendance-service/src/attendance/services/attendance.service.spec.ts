@@ -27,19 +27,36 @@ const DEFAULT_POLICY: AttendancePolicy = {
 };
 
 function buildLocationEvent(clientEventId: string, timestamp: string) {
+  const isExit = clientEventId.includes('exit');
   return {
     officeId: OFFICE_ID,
-    location: { latitude: 18.5204, longitude: 73.8567, accuracyMeters: 10, timestamp },
+    location: {
+      latitude: isExit ? 19.5204 : 18.5204,
+      longitude: 73.8567,
+      accuracyMeters: 10,
+      timestamp,
+    },
     clientEventId,
+    faceVerificationToken: 'mock-valid-token',
   };
 }
 
 function createTestBed(policyOverrides: Partial<AttendancePolicy> = {}) {
   const prisma = new FakePrismaService();
-  const geofenceProvider = { isInsideOffice: jest.fn().mockResolvedValue(true) };
+  const geofenceProvider = {
+    isInsideOffice: jest.fn().mockImplementation((_officeId: string, lat: number, lon: number) => {
+      return Promise.resolve(lat === 18.5204 && lon === 73.8567);
+    }),
+  };
   const employeeProvider = { isAssignedToOffice: jest.fn().mockResolvedValue(true) };
   const policyProvider = {
     getPolicy: jest.fn().mockResolvedValue({ ...DEFAULT_POLICY, ...policyOverrides }),
+  };
+  const faceAiProvider = {
+    validateVerificationToken: jest.fn().mockResolvedValue({ valid: true, employeeId: EMPLOYEE_ID }),
+  };
+  const notificationClient = {
+    sendNotification: jest.fn().mockResolvedValue(true),
   };
 
   const service = new AttendanceService(
@@ -48,9 +65,11 @@ function createTestBed(policyOverrides: Partial<AttendancePolicy> = {}) {
     geofenceProvider as any,
     employeeProvider as any,
     policyProvider as any,
+    faceAiProvider as any,
+    notificationClient as any,
   );
 
-  return { service, prisma, geofenceProvider, employeeProvider, policyProvider };
+  return { service, prisma, geofenceProvider, employeeProvider, policyProvider, faceAiProvider, notificationClient };
 }
 
 describe('AttendanceService', () => {
@@ -129,7 +148,7 @@ describe('AttendanceService', () => {
       ).rejects.toMatchObject({ response: { code: ErrorCodes.OUTSIDE_GEOFENCE } });
     });
 
-    it('rejects a re-check-in on the same date after a completed session', async () => {
+    it('allows a re-check-in on the same date after a completed session', async () => {
       const { service } = createTestBed();
       await service.checkIn(
         EMPLOYEE_ID,
@@ -142,13 +161,13 @@ describe('AttendanceService', () => {
         new Date('2026-09-22T17:00:00Z'),
       );
 
-      await expect(
-        service.checkIn(
-          EMPLOYEE_ID,
-          buildLocationEvent('ci-2', '2026-09-22T17:30:00Z'),
-          new Date('2026-09-22T17:30:00Z'),
-        ),
-      ).rejects.toMatchObject({ response: { code: ErrorCodes.ATTENDANCE_ALREADY_COMPLETED } });
+      const secondCheckIn = await service.checkIn(
+        EMPLOYEE_ID,
+        buildLocationEvent('ci-2', '2026-09-22T17:30:00Z'),
+        new Date('2026-09-22T17:30:00Z'),
+      );
+      expect(secondCheckIn.session.status).toBe(AttendanceStatus.WORKING);
+      expect(secondCheckIn.session.id).toBeDefined();
     });
   });
 
@@ -333,7 +352,7 @@ describe('AttendanceService', () => {
             eventType: AttendanceEventType.GEOFENCE_EXIT,
             eventTime: '2026-09-22T12:00:00Z',
             officeId: OFFICE_ID,
-            location: { latitude: 18.5204, longitude: 73.8567, timestamp: '2026-09-22T12:00:00Z' },
+            location: { latitude: 19.5204, longitude: 73.8567, timestamp: '2026-09-22T12:00:00Z' },
           },
           {
             clientEventId: 'sync-bad-checkin',

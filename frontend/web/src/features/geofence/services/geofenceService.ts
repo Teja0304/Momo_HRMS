@@ -73,3 +73,26 @@ export async function verifyLocation(payload: VerifyLocationPayload): Promise<Ve
   );
   return unwrapResponse(response.data);
 }
+
+/**
+ * Deletes or removes geofence polygon(s) for an office.
+ * DELETE /api/v1/offices/:id/polygon
+ */
+export async function deleteOfficePolygon(id: string, hard: boolean = true): Promise<unknown> {
+  const response = await api.delete(`${GEOFENCE_API_URL}/offices/${id}/polygon`, {
+    params: { hard: String(hard) },
+  });
+  return unwrapResponse(response.data);
+}
+
+/**
+ * Deletes an office entirely including its geofence polygons.
+ * DELETE /api/v1/offices/:id
+ */
+export async function deleteOffice(id: string, hard: boolean = true): Promise<unknown> {
+  const response = await api.delete(`${GEOFENCE_API_URL}/offices/${id}`, {
+    params: { hard: String(hard) },
+  });
+  return unwrapResponse(response.data);
+}
+

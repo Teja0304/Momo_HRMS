@@ -42,9 +42,15 @@ export class NotificationsController {
 
   @Get('unread-count')
   @ApiOperation({ summary: 'Get unread notification count for a recipient' })
-  @ApiQuery({ name: 'recipientId', required: true, type: String })
-  async getUnreadCount(@Query('recipientId') recipientId: string) {
-    return this.notificationsService.getUnreadCount(recipientId);
+  @ApiQuery({ name: 'recipientId', required: false, type: String })
+  @ApiQuery({ name: 'email', required: false, type: String })
+  @ApiQuery({ name: 'role', required: false, type: String })
+  async getUnreadCount(
+    @Query('recipientId') recipientId?: string,
+    @Query('email') email?: string,
+    @Query('role') role?: string,
+  ) {
+    return this.notificationsService.getUnreadCount(recipientId, email, role);
   }
 
   @Sse('stream')
@@ -62,9 +68,19 @@ export class NotificationsController {
 
   @Post('read-all')
   @ApiOperation({ summary: 'Mark all notifications as read for a recipient' })
-  @ApiQuery({ name: 'recipientId', required: true, type: String })
-  async markAllAsRead(@Query('recipientId') recipientId: string) {
-    return this.notificationsService.markAllAsRead(recipientId);
+  @ApiQuery({ name: 'recipientId', required: false, type: String })
+  @ApiQuery({ name: 'email', required: false, type: String })
+  @ApiQuery({ name: 'role', required: false, type: String })
+  async markAllAsRead(
+    @Query('recipientId') recipientId?: string,
+    @Query('email') email?: string,
+    @Query('role') role?: string,
+    @Body() body?: any,
+  ) {
+    const effectiveRecipientId = recipientId || body?.recipientId;
+    const effectiveEmail = email || body?.email;
+    const effectiveRole = role || body?.role;
+    return this.notificationsService.markAllAsRead(effectiveRecipientId, effectiveEmail, effectiveRole);
   }
 
   @Delete(':id')

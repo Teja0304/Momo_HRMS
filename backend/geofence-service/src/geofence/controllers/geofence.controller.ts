@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Delete, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GeofenceService } from '../services/geofence.service';
 import { VerifyLocationDto } from '../dto/verify-location.dto';
@@ -20,4 +20,23 @@ export class GeofenceController {
   async verify(@Body() dto: VerifyLocationDto): Promise<VerifyLocationResponseDto> {
     return this.geofenceService.verifyLocation(dto);
   }
+
+  @Delete('polygons/:id')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete a specific geofence polygon by ID' })
+  @ApiMessage('Geofence polygon deleted successfully')
+  async deletePolygonById(@Param('id') id: string) {
+    return this.geofenceService.deletePolygonById(id);
+  }
+
+  @Delete(':officeId')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete geofence polygon for an office' })
+  @ApiMessage('Geofence deleted successfully')
+  async deleteGeofenceByOfficeId(@Param('officeId') officeId: string) {
+    return this.geofenceService.deleteOfficePolygon(officeId, true);
+  }
 }
+

@@ -31,10 +31,10 @@ export class AuthEnrichmentMiddleware implements NestMiddleware {
             req.headers['x-employee-id'] = decoded.employeeId;
           }
           if (decoded.roles && !req.headers['x-roles']) {
-            req.headers['x-roles'] = Array.isArray(decoded.roles) ? JSON.stringify(decoded.roles) : String(decoded.roles);
+            req.headers['x-roles'] = Array.isArray(decoded.roles) ? decoded.roles.join(',') : String(decoded.roles);
           }
           if (decoded.permissions && !req.headers['x-permissions']) {
-            req.headers['x-permissions'] = Array.isArray(decoded.permissions) ? JSON.stringify(decoded.permissions) : String(decoded.permissions);
+            req.headers['x-permissions'] = Array.isArray(decoded.permissions) ? decoded.permissions.join(',') : String(decoded.permissions);
           }
         }
       } catch (err) {

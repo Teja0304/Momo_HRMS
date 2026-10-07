@@ -32,7 +32,7 @@ export class WorkingTimeService {
    */
   calculateWorkingSeconds(
     session: SessionForDurationCalc,
-    pauses: PauseForDurationCalc[],
+    pauses: PauseForDurationCalc[] = [],
     now: Date = new Date(),
   ): number {
     const referenceEnd = this.resolveReferenceEnd(session, now);
@@ -40,7 +40,7 @@ export class WorkingTimeService {
       0,
       (referenceEnd.getTime() - session.checkInAt.getTime()) / 1000,
     );
-    const pausedSeconds = this.sumPauseSeconds(pauses, referenceEnd);
+    const pausedSeconds = this.sumPauseSeconds(pauses || [], referenceEnd);
     return Math.max(0, Math.round(grossSeconds - pausedSeconds));
   }
 

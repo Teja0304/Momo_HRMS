@@ -1,4 +1,4 @@
-export type AttendanceStatus = 'WORKING' | 'PAUSED' | 'COMPLETED';
+export type AttendanceStatus = 'WORKING' | 'PAUSED' | 'COMPLETED' | 'CHECKED_OUT' | 'AUTO_CHECKED_OUT';
 export type CheckInStatus = 'ON_TIME' | 'GRACE_PERIOD' | 'LATE';
 export type CheckoutType = 'NORMAL' | 'AUTO_CHECKOUT' | 'EXCEPTION';
 export type CheckoutReason = 'END_OF_DAY' | 'GEOFENCE_TIMEOUT' | 'MANUAL_OVERRIDE';
@@ -47,6 +47,11 @@ export interface AttendanceSession {
   currentGraceDeadline?: string | null;
   totalWorkingSeconds: number;
   totalPausedSeconds: number;
+  regularWorkingSeconds?: number;
+  specialConditionSeconds?: number;
+  hasSpecialCondition?: boolean;
+  specialConditionStatus?: string;
+  specialConditionReason?: string;
   pauses?: AttendancePause[];
   events?: AttendanceEvent[];
 }
@@ -55,6 +60,8 @@ export interface TodayAttendanceResponse {
   attendanceDate: string;
   sessions: AttendanceSession[];
   totalWorkingSecondsToday: number;
+  totalRegularWorkingSecondsToday?: number;
+  totalSpecialConditionSecondsToday?: number;
   hasActiveSession: boolean;
 }
 

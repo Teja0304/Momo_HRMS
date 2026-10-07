@@ -3,6 +3,11 @@ import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsLatitude, IsLongitude, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 
 export class VertexDto {
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @IsNumber()
+  sequence?: number;
+
   @ApiProperty({ example: 18.5210 })
   @IsLatitude()
   latitude!: number;

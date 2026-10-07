@@ -8,27 +8,41 @@ import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import Snackbar from '@mui/material/Snackbar';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import BlockIcon from '@mui/icons-material/Block';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EditIcon from '@mui/icons-material/Edit';
-import SmartphoneIcon from '@mui/icons-material/Smartphone';
-import FaceIcon from '@mui/icons-material/Face';
+import HistoryIcon from '@mui/icons-material/History';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import SmartphoneIcon from '@mui/icons-material/Smartphone';
+import ComputerIcon from '@mui/icons-material/Computer';
+import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 import VpnKeyOutlinedIcon from '@mui/icons-material/VpnKeyOutlined';
 import { DashboardLayout } from '../../../components/DashboardLayout';
 import { LoadingIndicator } from '../../../components/LoadingIndicator';
 import { PATHS } from '../../../routes/paths';
+import { useAuth } from '../../../context/AuthContext';
+import { api } from '../../../api/client';
+import { ATTENDANCE_API_URL } from '../../../config/env';
 import {
   changeEmployeeStatus,
   fetchEmployeeProfile,
@@ -38,9 +52,31 @@ import type { EmployeeProfileResponse } from '../../../types/employee';
 import { EmployeeStatusBadge } from '../components/EmployeeStatusBadge';
 import { AccountStatusBadge } from '../components/AccountStatusBadge';
 
+function calculateAge(dobString?: string | null): number | null {
+  if (!dobString) return null;
+  const birthDate = new Date(dobString);
+  if (isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age >= 0 ? age : null;
+}
+
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return '00h 00m';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
+}
+
 export default function EmployeeDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.appRole === 'ADMIN';
 
   const [data, setData] = useState<EmployeeProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +89,62 @@ export default function EmployeeDetailsPage() {
   const [resending, setResending] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  // Attendance Information
+  const [todayAttendance, setTodayAttendance] = useState<{
+    sessions?: any[];
+    totalWorkingSecondsToday?: number;
+    hasActiveSession?: boolean;
+    attendanceDate?: string;
+  } | null>(null);
+  const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
+
+  const loadAttendance = useCallback(async (codeOverride?: string) => {
+    if (!id) return;
+    setLoadingAttendance(true);
+    try {
+      const targetCode = codeOverride || data?.employee?.employeeCode;
+      const primaryId = targetCode || id;
+
+      const [todayRes, historyRes] = await Promise.all([
+        api.get(`${ATTENDANCE_API_URL}/today?employeeId=${encodeURIComponent(primaryId)}`).catch(() => null),
+        api.get(`${ATTENDANCE_API_URL}/history?employeeId=${encodeURIComponent(primaryId)}&limit=10`).catch(() => null),
+      ]);
+      let todayData = todayRes?.data?.data || todayRes?.data;
+      let historyData = historyRes?.data?.data || historyRes?.data;
+      let histItems = historyData?.items || (Array.isArray(historyData) ? historyData : []);
+
+      // If primaryId returned 0 sessions, fallback to employeeCode or id
+      const fallbackId = primaryId === id ? targetCode : id;
+      if ((!todayData?.sessions || todayData.sessions.length === 0) && fallbackId) {
+        const fbToday = await api.get(`${ATTENDANCE_API_URL}/today?employeeId=${encodeURIComponent(fallbackId)}`).catch(() => null);
+        if (fbToday?.data) {
+          const parsed = fbToday.data?.data || fbToday.data;
+          if (parsed?.sessions?.length > 0) todayData = parsed;
+        }
+      }
+      if (histItems.length === 0 && fallbackId) {
+        const fbHist = await api.get(`${ATTENDANCE_API_URL}/history?employeeId=${encodeURIComponent(fallbackId)}&limit=10`).catch(() => null);
+        if (fbHist?.data) {
+          const parsed = fbHist.data?.data || fbHist.data;
+          const items = parsed?.items || (Array.isArray(parsed) ? parsed : []);
+          if (items.length > 0) histItems = items;
+        }
+      }
+
+      if (todayData) {
+        setTodayAttendance(todayData);
+      }
+      if (histItems) {
+        setAttendanceHistory(histItems);
+      }
+    } catch {
+      // Attendance query failure should not break profile view
+    } finally {
+      setLoadingAttendance(false);
+    }
+  }, [id, data?.employee?.employeeCode]);
+
   const loadProfile = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -60,6 +152,11 @@ export default function EmployeeDetailsPage() {
     try {
       const profile = await fetchEmployeeProfile(id);
       setData(profile);
+      if (profile?.employee?.employeeCode) {
+        void loadAttendance(profile.employee.employeeCode);
+      } else {
+        void loadAttendance();
+      }
     } catch (err: unknown) {
       const msg =
         axios.isAxiosError(err) && err.response?.data?.error?.message
@@ -69,7 +166,7 @@ export default function EmployeeDetailsPage() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, loadAttendance]);
 
   const handleResend = async () => {
     if (!id) return;
@@ -90,50 +187,27 @@ export default function EmployeeDetailsPage() {
   };
 
   useEffect(() => {
-    let active = true;
-    if (!id) return;
-
-    fetchEmployeeProfile(id)
-      .then((profile) => {
-        if (active) {
-          setData(profile);
-          setError(null);
-          setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (active) {
-          const msg =
-            axios.isAxiosError(err) && err.response?.data?.error?.message
-              ? err.response.data.error.message
-              : 'Failed to load employee details.';
-          setError(msg);
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [id]);
+    loadProfile();
+  }, [loadProfile]);
 
   const handleStatusToggle = async () => {
-    if (!data?.employee) return;
-    const nextStatus = data.employee.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    if (!data) return;
     setStatusSubmitting(true);
+    const nextStatus = data.employee.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     try {
       await changeEmployeeStatus(data.employee.id, {
         status: nextStatus,
-        reason: statusReason.trim() || undefined,
+        reason: statusReason || undefined,
       });
-      setFeedback(`Employee status successfully changed to ${nextStatus.toLowerCase()}.`);
       setStatusDialogOpen(false);
       setStatusReason('');
-      await loadProfile();
+      setFeedback(`Employee status successfully updated to ${nextStatus}.`);
+      loadProfile();
     } catch (err: unknown) {
-      const msg = axios.isAxiosError(err) && err.response?.data?.error?.message
-        ? err.response.data.error.message
-        : 'Failed to update employee status.';
+      const msg =
+        axios.isAxiosError(err) && err.response?.data?.error?.message
+          ? err.response.data.error.message
+          : 'Failed to update employee status.';
       setError(msg);
     } finally {
       setStatusSubmitting(false);
@@ -142,7 +216,7 @@ export default function EmployeeDetailsPage() {
 
   if (loading) {
     return (
-      <DashboardLayout title="Employee Details" subtitle="Loading profile information...">
+      <DashboardLayout title="Employee Details" subtitle="Loading profile...">
         <LoadingIndicator message="Retrieving employee profile..." />
       </DashboardLayout>
     );
@@ -150,15 +224,12 @@ export default function EmployeeDetailsPage() {
 
   if (error || !data) {
     return (
-      <DashboardLayout title="Employee Details" subtitle="Employee Profile">
+      <DashboardLayout title="Employee Details" subtitle="Error loading profile">
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
-          <Typography color="error" variant="h6" gutterBottom>
-            Unable to load employee details
-          </Typography>
-          <Typography color="text.secondary" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
             {error || 'Employee not found.'}
-          </Typography>
-          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+          </Alert>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
             <Button
               variant="outlined"
               startIcon={<ArrowBackIcon />}
@@ -166,7 +237,11 @@ export default function EmployeeDetailsPage() {
             >
               Back to Employee List
             </Button>
-            <Button variant="contained" startIcon={<RefreshIcon />} onClick={loadProfile}>
+            <Button
+              variant="contained"
+              startIcon={<RefreshIcon />}
+              onClick={loadProfile}
+            >
               Retry
             </Button>
           </Box>
@@ -175,9 +250,34 @@ export default function EmployeeDetailsPage() {
     );
   }
 
-  const { employee, devices, faceTemplate } = data;
+  const { employee } = data;
   const initials = `${employee.firstName.charAt(0)}${employee.lastName.charAt(0)}`.toUpperCase();
   const isActive = employee.status === 'ACTIVE';
+  const age = calculateAge(employee.dateOfBirth);
+
+  const isProfileComplete = Boolean(
+    employee.dateOfBirth &&
+    employee.gender &&
+    employee.phone &&
+    employee.address &&
+    employee.personalEmail
+  );
+
+  // Compute today's attendance display
+  const todaySessions = todayAttendance?.sessions || [];
+  const latestSession = todaySessions[todaySessions.length - 1];
+  const hasCheckedInToday = todaySessions.length > 0;
+  const isWorkingNow = latestSession?.status === 'WORKING';
+  const isPausedNow = latestSession?.status === 'PAUSED';
+  const isCheckedOutToday = latestSession?.status === 'CHECKED_OUT' || latestSession?.status === 'AUTO_CHECKED_OUT';
+  const todayStatusLabel = isWorkingNow
+    ? 'Working (Inside Office)'
+    : isPausedNow
+    ? 'Paused (Outside Office)'
+    : isCheckedOutToday
+    ? 'Checked Out'
+    : 'Not Checked In';
+  const todayStatusColor = isWorkingNow ? 'success' : isPausedNow ? 'warning' : isCheckedOutToday ? 'info' : 'default';
 
   return (
     <DashboardLayout
@@ -193,32 +293,34 @@ export default function EmployeeDetailsPage() {
         >
           Back to Employee List
         </Button>
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <Button
-            variant="outlined"
-            color="secondary"
-            startIcon={<VpnKeyOutlinedIcon />}
-            disabled={resending}
-            onClick={handleResend}
-          >
-            {resending ? 'Sending...' : 'Resend Credentials'}
-          </Button>
-          <Button
-            variant="outlined"
-            color={isActive ? 'error' : 'success'}
-            startIcon={isActive ? <BlockIcon /> : <CheckCircleIcon />}
-            onClick={() => setStatusDialogOpen(true)}
-          >
-            {isActive ? 'Deactivate' : 'Activate'}
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<EditIcon />}
-            onClick={() => navigate(PATHS.editEmployee(employee.id))}
-          >
-            Edit Profile
-          </Button>
-        </Box>
+        {isAdmin && (
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={<VpnKeyOutlinedIcon />}
+              disabled={resending}
+              onClick={handleResend}
+            >
+              {resending ? 'Sending...' : 'Resend Credentials'}
+            </Button>
+            <Button
+              variant="outlined"
+              color={isActive ? 'error' : 'success'}
+              startIcon={isActive ? <BlockIcon /> : <CheckCircleIcon />}
+              onClick={() => setStatusDialogOpen(true)}
+            >
+              {isActive ? 'Deactivate' : 'Activate'}
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<EditIcon />}
+              onClick={() => navigate(PATHS.editEmployee(employee.id))}
+            >
+              Edit Profile
+            </Button>
+          </Box>
+        )}
       </Box>
 
       {/* Profile Overview Card */}
@@ -236,6 +338,13 @@ export default function EmployeeDetailsPage() {
                 {employee.firstName} {employee.lastName}
               </Typography>
               <EmployeeStatusBadge status={employee.status} size="medium" />
+              <Chip
+                label={isProfileComplete ? 'Profile Complete' : 'Profile Incomplete'}
+                color={isProfileComplete ? 'success' : 'warning'}
+                size="small"
+                variant="outlined"
+                sx={{ fontWeight: 600 }}
+              />
               <AccountStatusBadge
                 hasAccount={Boolean(employee.userId || employee.hasAccount)}
                 credentialsSentAt={employee.credentialsSentAt}
@@ -247,13 +356,224 @@ export default function EmployeeDetailsPage() {
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Organization Role: <strong>{employee.role?.name}</strong>
+              {(employee.assignedOffices || []).length > 0 ? (
+                <>
+                  {' '}• Assigned Offices:
+                  <Box component="span" sx={{ display: 'inline-flex', flexWrap: 'wrap', gap: 0.5, ml: 1, verticalAlign: 'middle' }}>
+                    {employee.assignedOffices!.map((o) => (
+                      <Chip
+                        key={o.id}
+                        label={`📍 ${o.name} (${o.code})${o.isPrimary ? ' [Primary]' : ''}`}
+                        size="small"
+                        color={o.isPrimary ? 'primary' : 'default'}
+                        variant={o.isPrimary ? 'filled' : 'outlined'}
+                        sx={{ fontWeight: 600, fontSize: '0.75rem', height: 22 }}
+                      />
+                    ))}
+                  </Box>
+                </>
+              ) : employee.officeLocationName ? (
+                <> • Assigned Office: <strong style={{ color: '#1976d2' }}>📍 {employee.officeLocationName}</strong></>
+              ) : null}
             </Typography>
           </Box>
         </Box>
       </Paper>
 
+      {/* HR Multi-Account Information */}
+      {Boolean(employee.role?.name?.toUpperCase().includes('HR') || employee.email.includes('.hr@')) && (
+        <Card
+          variant="outlined"
+          sx={{
+            mb: 3,
+            borderColor: 'secondary.main',
+            borderWidth: 1.5,
+            bgcolor: 'rgba(156, 39, 176, 0.03)',
+          }}
+        >
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+              <SupervisorAccountIcon color="secondary" />
+              <Typography variant="h6" sx={{ fontWeight: 700, color: 'secondary.dark' }}>
+                HR Staff Member — Dual Company Accounts
+              </Typography>
+              <Chip label="Accounts: 2" color="secondary" size="small" sx={{ fontWeight: 700 }} />
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              This staff member maintains separate accounts for administrative web management and daily attendance tracking:
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <ComputerIcon color="secondary" fontSize="small" />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    1. HR Functional Account
+                  </Typography>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  Used for: HR Web Portal (Employee Directory, Onboarding, Analytics)
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace', color: 'secondary.main' }}>
+                  {employee.email}
+                </Typography>
+              </Paper>
+              <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <SmartphoneIcon color="primary" fontSize="small" />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    2. Employee Attendance Account
+                  </Typography>
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  Used for: Employee Attendance (Mobile App Check-in / Check-out)
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace', color: 'primary.main' }}>
+                  {employee.email.includes('.hr') ? employee.email.replace(/\.hr([0-9]*?)@/, '$1@') : employee.email}
+                </Typography>
+              </Paper>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Attendance Summary Section */}
+      <Card variant="outlined" sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <AccessTimeIcon color="primary" />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Attendance & Time Logs
+              </Typography>
+              {loadingAttendance ? (
+                <CircularProgress size={16} />
+              ) : (
+                <IconButton
+                  size="small"
+                  onClick={() => loadAttendance(data?.employee?.employeeCode)}
+                  title="Refresh Attendance Logs"
+                >
+                  <RefreshIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
+            <Chip
+              label={`Today: ${todayStatusLabel}`}
+              color={todayStatusColor as any}
+              sx={{ fontWeight: 700 }}
+            />
+          </Box>
+          <Divider sx={{ mb: 2 }} />
+ 
+          {isPausedNow && (
+            <Alert
+              severity="warning"
+              variant="outlined"
+              sx={{ mb: 2, alignItems: 'center' }}
+            >
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Attendance Session Currently Paused (Outside Office Boundary)
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Employee has exited the assigned office geofence. Working hours are paused.
+                  {latestSession?.currentGraceDeadline && (
+                    <> Auto-checkout grace deadline: <strong>{new Date(latestSession.currentGraceDeadline).toLocaleTimeString()}</strong>.</>
+                  )}
+                </Typography>
+              </Box>
+            </Alert>
+          )}
+
+          {/* Today's Metrics */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
+            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'background.default' }}>
+              <Typography variant="caption" color="text.secondary">Today's Check-In</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                {latestSession?.checkInAt ? new Date(latestSession.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+              </Typography>
+            </Paper>
+            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'background.default' }}>
+              <Typography variant="caption" color="text.secondary">Today's Check-Out</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                {latestSession?.checkOutAt ? new Date(latestSession.checkOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+              </Typography>
+            </Paper>
+            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'background.default' }}>
+              <Typography variant="caption" color="text.secondary">Working Hours Today</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                {formatDuration(todayAttendance?.totalWorkingSecondsToday ?? latestSession?.totalWorkingSeconds ?? 0)}
+              </Typography>
+            </Paper>
+            <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'background.default' }}>
+              <Typography variant="caption" color="text.secondary">Punctuality</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                {latestSession?.checkInStatus?.replace('_', ' ') || (hasCheckedInToday ? 'On Time' : '—')}
+              </Typography>
+            </Paper>
+          </Box>
+
+          {/* Recent Attendance History Table */}
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <HistoryIcon fontSize="small" color="action" />
+            Recent Attendance Records
+          </Typography>
+          {attendanceHistory.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+              No previous attendance records logged for this employee.
+            </Typography>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead sx={{ bgcolor: 'action.hover' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Check-In</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Check-Out</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Working Duration</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {attendanceHistory.map((sess) => (
+                    <TableRow key={sess.id}>
+                      <TableCell>{sess.attendanceDate ? String(sess.attendanceDate).slice(0, 10) : '—'}</TableCell>
+                      <TableCell>{sess.checkInAt ? new Date(sess.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</TableCell>
+                      <TableCell>{sess.checkOutAt ? new Date(sess.checkOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>{formatDuration(sess.totalWorkingSeconds)}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={
+                            sess.status === 'WORKING'
+                              ? 'Working'
+                              : sess.status === 'PAUSED'
+                              ? 'Paused'
+                              : sess.status === 'CHECKED_OUT'
+                              ? 'Checked Out'
+                              : sess.status?.replace('_', ' ')
+                          }
+                          size="small"
+                          color={
+                            sess.status === 'WORKING'
+                              ? 'success'
+                              : sess.status === 'PAUSED'
+                              ? 'warning'
+                              : 'default'
+                          }
+                          variant="outlined"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </CardContent>
+      </Card>
+
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3, mb: 3 }}>
-        {/* Card 1: Personal Information */}
+        {/* Card 1: Personal & Account Information */}
         <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom>
@@ -263,8 +583,12 @@ export default function EmployeeDetailsPage() {
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <Box>
-                <Typography variant="caption" color="text.secondary">Official Login Email</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>{employee.email}</Typography>
+                <Typography variant="caption" color="text.secondary">Full Legal Name</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{employee.firstName} {employee.lastName}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Official Login Email (Company)</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500, fontFamily: 'monospace' }}>{employee.email}</Typography>
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary">Personal Email (Credential Delivery)</Typography>
@@ -281,8 +605,12 @@ export default function EmployeeDetailsPage() {
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>{employee.phone}</Typography>
               </Box>
               <Box>
-                <Typography variant="caption" color="text.secondary">Date of Birth</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>{employee.dateOfBirth ?? 'Not specified'}</Typography>
+                <Typography variant="caption" color="text.secondary">Date of Birth & Calculated Age</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {employee.dateOfBirth
+                    ? `${employee.dateOfBirth} (${age !== null ? `${age} years old` : 'Age unavailable'})`
+                    : 'Not specified'}
+                </Typography>
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary">Gender</Typography>
@@ -291,6 +619,12 @@ export default function EmployeeDetailsPage() {
               <Box>
                 <Typography variant="caption" color="text.secondary">Residential Address</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>{employee.address ?? 'Not specified'}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Emergency Contact</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {employee.phone ? `${employee.phone} (Primary Phone)` : employee.personalEmail || 'Not specified'}
+                </Typography>
               </Box>
             </Box>
           </CardContent>
@@ -324,6 +658,27 @@ export default function EmployeeDetailsPage() {
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>{employee.dateOfJoining}</Typography>
               </Box>
               <Box>
+                <Typography variant="caption" color="text.secondary">Assigned Workplaces (Multi-Location Access)</Typography>
+                {(employee.assignedOffices || []).length > 0 ? (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 0.5 }}>
+                    {employee.assignedOffices!.map((o) => (
+                      <Chip
+                        key={o.id}
+                        label={`📍 ${o.name} (${o.code})${o.isPrimary ? ' • Primary Workplace' : ''}`}
+                        size="small"
+                        color={o.isPrimary ? 'primary' : 'default'}
+                        variant={o.isPrimary ? 'filled' : 'outlined'}
+                        sx={{ fontWeight: 600, fontSize: '0.75rem' }}
+                      />
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {employee.officeLocationName || 'Not assigned'}
+                  </Typography>
+                )}
+              </Box>
+              <Box>
                 <Typography variant="caption" color="text.secondary">Account Created</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   {new Date(employee.createdAt).toLocaleDateString()}
@@ -341,94 +696,6 @@ export default function EmployeeDetailsPage() {
                   )}
                 </Box>
               )}
-            </Box>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Registered Attendance Devices */}
-        <Card variant="outlined">
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <SmartphoneIcon color="primary" fontSize="small" />
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Registered Devices ({devices.length})
-              </Typography>
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-              Hardware registered for mobile/web GPS attendance verification.
-            </Typography>
-            <Divider sx={{ my: 1.5 }} />
-
-            {devices.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                No registered devices recorded for this employee.
-              </Typography>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                {devices.map((device) => (
-                  <Paper key={device.id} variant="outlined" sx={{ p: 1.5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                        {device.deviceName}
-                      </Typography>
-                      <Chip
-                        size="small"
-                        label={device.status}
-                        color={device.status === 'ACTIVE' ? 'success' : 'default'}
-                        variant="outlined"
-                      />
-                    </Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Type: {device.deviceType} • Registered: {device.registeredAt ? new Date(device.registeredAt).toLocaleDateString() : 'N/A'}
-                    </Typography>
-                  </Paper>
-                ))}
-              </Box>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Card 4: Face Template Reference Metadata */}
-        <Card variant="outlined">
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <FaceIcon color="primary" fontSize="small" />
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Biometric Template Status
-              </Typography>
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-              Biometric metadata reference only. Raw template data is never stored in this service.
-            </Typography>
-            <Divider sx={{ my: 1.5 }} />
-
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Active Reference Status
-                </Typography>
-                <Chip
-                  label={faceTemplate.hasActiveReference ? 'Enrolled & Active' : 'Not Enrolled'}
-                  color={faceTemplate.hasActiveReference ? 'success' : 'default'}
-                  variant="outlined"
-                  size="small"
-                />
-              </Box>
-
-              {faceTemplate.status && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Reference State
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {faceTemplate.status}
-                  </Typography>
-                </Box>
-              )}
-
-              <Alert severity="info" sx={{ mt: 1, fontSize: '0.8rem' }}>
-                Face verification templates reside inside dedicated biometric recognition systems. Only external identifiers and enrollment statuses are referenced here.
-              </Alert>
             </Box>
           </CardContent>
         </Card>

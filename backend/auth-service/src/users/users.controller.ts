@@ -1,8 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import type { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { ROLE_NAMES } from '../common/constants/rbac.constants';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -20,16 +18,15 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   /**
-   * User provisioning (NOT self-registration). SUPER_ADMIN and HR_ADMIN may
-   * create users through this endpoint. HR_ADMIN cannot assign SUPER_ADMIN role.
+   * User provisioning (NOT self-registration). Only SUPER_ADMIN may
+   * create users through this endpoint. The Employee Service can later
+   * call UsersService.createUser directly (in-process) or via an
+   * internal/service-to-service endpoint using the same method.
    */
   @Post()
   @Roles(ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.HR_ADMIN)
-  create(
-    @Body() dto: CreateUserDto,
-    @CurrentUser() actor: AuthenticatedUser,
-  ): Promise<UserResponseDto> {
-    return this.usersService.createUser(dto, actor);
+  create(@Body() dto: CreateUserDto): Promise<UserResponseDto> {
+    return this.usersService.createUser(dto);
   }
 
   @Get()
@@ -45,7 +42,7 @@ export class UsersController {
   }
 
   @Patch(':id/status')
-  @Roles(ROLE_NAMES.SUPER_ADMIN)
+  @Roles(ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.HR_ADMIN)
   updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserStatusDto,
@@ -54,7 +51,7 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles(ROLE_NAMES.SUPER_ADMIN)
+  @Roles(ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.HR_ADMIN)
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
@@ -74,16 +71,20 @@ export class UsersController {
   async resetPassword(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ResetPasswordDto,
-    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<{ success: true }> {
-    await this.usersService.adminResetPassword(id, dto.temporaryPassword, actor);
+    await this.usersService.adminResetPassword(id, dto.temporaryPassword);
     return { success: true };
   }
 
+  /**
+   * User deletion - strictly restricted to SUPER_ADMIN.
+   * HR_ADMIN is forbidden from deleting users.
+   */
   @Delete(':id')
-  @Roles(ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.HR_ADMIN)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteUser(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+  @Roles(ROLE_NAMES.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async deleteUser(@Param('id', ParseUUIDPipe) id: string): Promise<{ success: true }> {
     await this.usersService.deleteUser(id);
+    return { success: true };
   }
 }

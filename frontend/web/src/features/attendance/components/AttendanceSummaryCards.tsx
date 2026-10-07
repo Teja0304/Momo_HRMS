@@ -12,6 +12,8 @@ import { AttendanceStatusBadge, CheckInStatusBadge } from './AttendanceStatusBad
 interface Props {
   todaySession: AttendanceSession | null;
   totalWorkingSecondsToday: number;
+  totalRegularWorkingSecondsToday?: number;
+  totalSpecialConditionSecondsToday?: number;
   hasActiveSession: boolean;
   liveWorkingSeconds?: number;
 }
@@ -26,6 +28,7 @@ function formatDuration(totalSeconds: number): string {
 export function AttendanceSummaryCards({
   todaySession,
   totalWorkingSecondsToday,
+  totalSpecialConditionSecondsToday,
   hasActiveSession,
   liveWorkingSeconds,
 }: Props) {
@@ -52,9 +55,15 @@ export function AttendanceSummaryCards({
           <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: 'monospace' }}>
             {formatDuration(displayWorkingSeconds)}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {todaySession ? 'Active session counter' : 'No active timer'}
-          </Typography>
+          {totalSpecialConditionSecondsToday && totalSpecialConditionSecondsToday > 0 ? (
+            <Typography variant="caption" sx={{ color: 'secondary.main', fontWeight: 700, display: 'block' }}>
+              +{formatDuration(totalSpecialConditionSecondsToday)} Special (HR Approved)
+            </Typography>
+          ) : (
+            <Typography variant="caption" color="text.secondary">
+              {todaySession ? 'Active session counter' : 'No active timer'}
+            </Typography>
+          )}
         </CardContent>
       </Card>
 

@@ -30,6 +30,8 @@ export async function fetchNotifications(
 ): Promise<PaginatedNotificationsResponse> {
   const queryParams: Record<string, string | number | boolean> = {};
   if (params.recipientId) queryParams.recipientId = params.recipientId;
+  if (params.email) queryParams.email = params.email;
+  if (params.role) queryParams.role = params.role;
   if (typeof params.isRead === 'boolean') queryParams.isRead = params.isRead;
   if (params.page) queryParams.page = params.page;
   if (params.limit) queryParams.limit = params.limit;
@@ -45,10 +47,13 @@ export async function fetchNotifications(
  * Get count of unread notifications for a recipient.
  * GET /api/v1/notifications/unread-count?recipientId=...
  */
-export async function fetchUnreadCount(recipientId: string): Promise<number> {
+export async function fetchUnreadCount(recipientId: string, email?: string, role?: string): Promise<number> {
+  const params: Record<string, string> = { recipientId };
+  if (email) params.email = email;
+  if (role) params.role = role;
   const response = await api.get<{ count: number } | BackendEnvelope<{ count: number }>>(
     `${NOTIFICATION_API_URL}/unread-count`,
-    { params: { recipientId } },
+    { params },
   );
   const data = unwrapResponse(response.data);
   return data.count ?? 0;
@@ -83,11 +88,20 @@ export async function markNotificationAsRead(id: string): Promise<AppNotificatio
  * Mark all notifications as read for a recipient.
  * POST /api/v1/notifications/read-all?recipientId=...
  */
-export async function markAllNotificationsAsRead(recipientId: string): Promise<{ updated: number }> {
+export async function markAllNotificationsAsRead(
+  recipientId?: string,
+  email?: string,
+  role?: string,
+): Promise<{ updated: number }> {
+  const queryParams: Record<string, string> = {};
+  if (recipientId) queryParams.recipientId = recipientId;
+  if (email) queryParams.email = email;
+  if (role) queryParams.role = role;
+
   const response = await api.post<{ updated: number } | BackendEnvelope<{ updated: number }>>(
     `${NOTIFICATION_API_URL}/read-all`,
-    null,
-    { params: { recipientId } },
+    {},
+    { params: queryParams },
   );
   return unwrapResponse(response.data);
 }

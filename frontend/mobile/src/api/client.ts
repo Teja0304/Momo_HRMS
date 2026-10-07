@@ -1,19 +1,60 @@
 import axios from 'axios';
-import type { AxiosError } from 'axios';
-import { API_URL } from '../config/env';
+import type { AxiosError, AxiosInstance } from 'axios';
+import {
+  API_URL,
+  EMPLOYEE_API_URL,
+  ATTENDANCE_API_URL,
+  GEOFENCE_API_URL,
+  NOTIFICATION_API_URL,
+  FACE_API_URL,
+} from '../config/env';
 import type { ApiErrorBody, AuthResponse } from '../types/auth';
 import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from './tokenStorage';
 
-/**
- * One centralised Axios instance for the whole app.
- *  - attaches "Authorization: Bearer <accessToken>" to every request
- *  - on 401 it silently refreshes the token ONCE and retries the request
- *  - on 403 PASSWORD_CHANGE_REQUIRED it tells the AuthContext (business case 5)
- */
 export const api = axios.create({
   baseURL: API_URL,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
+});
+
+export const employeeClient = axios.create({
+  baseURL: EMPLOYEE_API_URL,
+  timeout: 15000,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+export const attendanceClient = axios.create({
+  baseURL: ATTENDANCE_API_URL,
+  timeout: 15000,
+  headers: {
+    'Content-Type': 'application/json',
+    'x-gateway-secret': 'dev-gateway-secret',
+  },
+});
+
+export const geofenceClient = axios.create({
+  baseURL: GEOFENCE_API_URL,
+  timeout: 15000,
+  headers: {
+    'Content-Type': 'application/json',
+    'x-gateway-secret': 'dev-gateway-secret',
+  },
+});
+
+export const notificationClient = axios.create({
+  baseURL: NOTIFICATION_API_URL,
+  timeout: 15000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+export const faceClient = axios.create({
+  baseURL: FACE_API_URL,
+  timeout: 25000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 /** Interceptor-free instance, used only for /auth/refresh (avoids infinite loops). */
@@ -40,12 +81,6 @@ export function setAuthEventHandlers(next: AuthEventHandlers): void {
 
 let refreshInFlight: Promise<AuthResponse> | null = null;
 
-/**
- * Exchanges the stored refresh token for a new token pair.
- * The backend ROTATES refresh tokens (each one works once), so two refreshes
- * running at the same time would break each other. This function is
- * "single flight": concurrent callers share the same request.
- */
 export function refreshSession(): Promise<AuthResponse> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
@@ -58,8 +93,6 @@ export function refreshSession(): Promise<AuthResponse> {
         await saveTokens(data.accessToken, data.refreshToken);
         return data;
       } catch (error) {
-        // Only wipe the session when the SERVER rejected the token,
-        // not when the phone/laptop is simply offline.
         if (
           axios.isAxiosError(error) &&
           error.response &&
@@ -76,49 +109,55 @@ export function refreshSession(): Promise<AuthResponse> {
   return refreshInFlight;
 }
 
-api.interceptors.request.use((config) => {
-  const token = getAccessToken();
-  if (token && !config.headers.Authorization) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error: AxiosError<ApiErrorBody>) => {
-    const original = error.config;
-    if (!original || !error.response) {
-      return Promise.reject(error); // network error / timeout
+function attachInterceptors(instance: AxiosInstance) {
+  instance.interceptors.request.use((config) => {
+    const token = getAccessToken();
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+    return config;
+  });
 
-    const { status, data } = error.response;
-
-    // Business case 5: backend says "you must change your password first".
-    if (status === 403 && data?.error === 'PASSWORD_CHANGE_REQUIRED') {
-      handlers.onPasswordChangeRequired();
-      return Promise.reject(error);
-    }
-
-    const url = original.url ?? '';
-    const isAuthCall = url.includes('/auth/login') || url.includes('/auth/refresh');
-
-    if (status === 401 && !isAuthCall && !original.skipAuthRefresh && !original._retry) {
-      original._retry = true;
-      try {
-        const session = await refreshSession();
-        original.headers.Authorization = `Bearer ${session.accessToken}`;
-        return api(original);
-      } catch (refreshError) {
-        // Offline while refreshing: keep the session, just fail this request.
-        if (axios.isAxiosError(refreshError) && !refreshError.response) {
-          return Promise.reject(error);
-        }
-        handlers.onSessionExpired();
+  instance.interceptors.response.use(
+    (response) => response,
+    async (error: AxiosError<ApiErrorBody>) => {
+      const original = error.config as any;
+      if (!original || !error.response) {
         return Promise.reject(error);
       }
-    }
 
-    return Promise.reject(error);
-  },
-);
+      const { status, data } = error.response;
+
+      if (status === 403 && data?.error === 'PASSWORD_CHANGE_REQUIRED') {
+        handlers.onPasswordChangeRequired();
+        return Promise.reject(error);
+      }
+
+      const url = original.url ?? '';
+      const isAuthCall = url.includes('/auth/login') || url.includes('/auth/refresh');
+
+      if (status === 401 && !isAuthCall && !original.skipAuthRefresh && !original._retry) {
+        original._retry = true;
+        try {
+          const session = await refreshSession();
+          original.headers.Authorization = `Bearer ${session.accessToken}`;
+          return instance(original);
+        } catch (refreshError) {
+          if (axios.isAxiosError(refreshError) && !refreshError.response) {
+            return Promise.reject(error);
+          }
+          handlers.onSessionExpired();
+          return Promise.reject(error);
+        }
+      }
+
+      return Promise.reject(error);
+    },
+  );
+}
+
+attachInterceptors(api);
+attachInterceptors(employeeClient);
+attachInterceptors(attendanceClient);
+attachInterceptors(geofenceClient);
+attachInterceptors(notificationClient);

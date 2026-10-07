@@ -271,4 +271,114 @@ export class GeofenceService {
       return newPolygon;
     });
   }
+
+  /**
+   * Delete or remove geofence polygon(s) for an office.
+   */
+  async deleteOfficePolygon(idOrCode: string, hard: boolean = true) {
+    const office = await this.prisma.office.findFirst({
+      where: { OR: [{ id: idOrCode }, { code: idOrCode }] },
+    });
+
+    if (!office) {
+      throw new AppException(ErrorCodes.OFFICE_NOT_FOUND, 'Office not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (hard) {
+      // Hard delete: remove all polygons (vertices cascade delete automatically)
+      const { count } = await this.prisma.geofencePolygon.deleteMany({
+        where: { officeId: office.id },
+      });
+      this.logger.log(`Hard deleted ${count} geofence polygons for office ${office.code}`);
+      return {
+        officeId: office.id,
+        officeCode: office.code,
+        deletedPolygonsCount: count,
+        message: 'Office geofence polygon(s) deleted successfully',
+      };
+    } else {
+      // Soft delete: deactivate all active polygons
+      const { count } = await this.prisma.geofencePolygon.updateMany({
+        where: { officeId: office.id, isActive: true },
+        data: { isActive: false },
+      });
+      this.logger.log(`Deactivated ${count} geofence polygons for office ${office.code}`);
+      return {
+        officeId: office.id,
+        officeCode: office.code,
+        deactivatedPolygonsCount: count,
+        message: 'Office geofence polygon(s) deactivated successfully',
+      };
+    }
+  }
+
+  /**
+   * Delete a single geofence polygon by ID.
+   */
+  async deletePolygonById(polygonId: string) {
+    const existing = await this.prisma.geofencePolygon.findUnique({
+      where: { id: polygonId },
+    });
+
+    if (!existing) {
+      throw new AppException(
+        ErrorCodes.NO_ACTIVE_POLYGON,
+        'Geofence polygon not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    await this.prisma.geofencePolygon.delete({
+      where: { id: polygonId },
+    });
+
+    this.logger.log(`Deleted geofence polygon ${polygonId}`);
+    return {
+      polygonId,
+      message: 'Geofence polygon deleted successfully',
+    };
+  }
+
+  /**
+   * Delete an office entirely (including its geofences and vertices).
+   */
+  async deleteOffice(idOrCode: string, hard: boolean = true) {
+    const office = await this.prisma.office.findFirst({
+      where: { OR: [{ id: idOrCode }, { code: idOrCode }] },
+    });
+
+    if (!office) {
+      throw new AppException(ErrorCodes.OFFICE_NOT_FOUND, 'Office not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (hard) {
+      await this.prisma.office.delete({
+        where: { id: office.id },
+      });
+      this.logger.log(`Deleted office ${office.code} and all associated geofence polygons`);
+      return {
+        officeId: office.id,
+        officeCode: office.code,
+        message: 'Office and all associated geofence data deleted successfully',
+      };
+    } else {
+      await this.prisma.$transaction([
+        this.prisma.office.update({
+          where: { id: office.id },
+          data: { isActive: false },
+        }),
+        this.prisma.geofencePolygon.updateMany({
+          where: { officeId: office.id },
+          data: { isActive: false },
+        }),
+      ]);
+      this.logger.log(`Deactivated office ${office.code}`);
+      return {
+        officeId: office.id,
+        officeCode: office.code,
+        message: 'Office and geofence deactivated successfully',
+      };
+    }
+  }
 }
+

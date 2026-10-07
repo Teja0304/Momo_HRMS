@@ -5,7 +5,9 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import AddLocationAltIcon from '@mui/icons-material/AddLocationAlt';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { DashboardLayout } from '../../../components/DashboardLayout';
+import { PATHS } from '../../../routes/paths';
 import { fetchOffices } from '../services/geofenceService';
 import type { Office } from '../types/geofence';
 import { GeofenceTable } from '../components/GeofenceTable';
@@ -52,6 +54,13 @@ export default function GeofenceListPage() {
       subtitle="Establish workplace office locations and manage geofence polygon perimeters."
     >
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+        <Button
+          startIcon={<ArrowBackIcon />}
+          color="inherit"
+          onClick={() => navigate(PATHS.admin)}
+        >
+          Back to Admin Dashboard
+        </Button>
         <Box>
           <Button
             variant="contained"

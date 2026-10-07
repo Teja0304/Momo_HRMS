@@ -31,4 +31,8 @@ export class CreateUserDto {
   @ArrayNotEmpty()
   @IsString({ each: true })
   roles: string[];
+
+  @ApiProperty({ example: false, required: false })
+  @IsOptional()
+  mustChangePassword?: boolean;
 }

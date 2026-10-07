@@ -18,10 +18,12 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import SaveIcon from '@mui/icons-material/Save';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
@@ -144,6 +146,55 @@ export default function EditOfficePolygonPage() {
     const updated = [...vertices];
     updated[index][field] = value;
     setVertices(updated);
+  };
+
+  // Interactive SVG canvas vertex dragging
+  const handleVertexDrag = (index: number, newLat: number, newLng: number) => {
+    setVertices((prev) => {
+      const updated = [...prev];
+      if (updated[index]) {
+        updated[index] = {
+          ...updated[index],
+          latitude: newLat.toFixed(6),
+          longitude: newLng.toFixed(6),
+        };
+      }
+      return updated;
+    });
+  };
+
+  // Drag-and-drop table row reordering
+  const [draggedRowIndex, setDraggedRowIndex] = useState<number | null>(null);
+  const [dragOverRowIndex, setDragOverRowIndex] = useState<number | null>(null);
+
+  const handleRowDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedRowIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleRowDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverRowIndex !== index) {
+      setDragOverRowIndex(index);
+    }
+  };
+
+  const handleRowDrop = (targetIndex: number) => {
+    if (draggedRowIndex === null || draggedRowIndex === targetIndex) {
+      setDraggedRowIndex(null);
+      setDragOverRowIndex(null);
+      return;
+    }
+    setVertices((prev) => {
+      const updated = [...prev];
+      const [moved] = updated.splice(draggedRowIndex, 1);
+      updated.splice(targetIndex, 0, moved);
+      return updated;
+    });
+    setDraggedRowIndex(null);
+    setDragOverRowIndex(null);
   };
 
   // Convert string vertices to numbers for SVG preview and payload
@@ -300,16 +351,59 @@ export default function EditOfficePolygonPage() {
                   <Table size="small" stickyHeader>
                     <TableHead sx={{ bgcolor: 'action.hover' }}>
                       <TableRow>
-                        <TableCell sx={{ fontWeight: 700, width: 60 }}>#</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 75 }}>
+                          <Tooltip title="Drag row to reorder points">
+                            <span>#</span>
+                          </Tooltip>
+                        </TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>Latitude</TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>Longitude</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, width: 60 }}>Remove</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700, width: 60 }}>
+                          Remove
+                        </TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {vertices.map((v, idx) => (
-                        <TableRow key={v.id}>
-                          <TableCell sx={{ fontWeight: 700 }}>P{idx + 1}</TableCell>
+                        <TableRow
+                          key={v.id}
+                          draggable
+                          onDragStart={(e) => handleRowDragStart(e, idx)}
+                          onDragOver={(e) => handleRowDragOver(e, idx)}
+                          onDragLeave={() => {
+                            if (dragOverRowIndex === idx) setDragOverRowIndex(null);
+                          }}
+                          onDrop={() => handleRowDrop(idx)}
+                          onDragEnd={() => {
+                            setDraggedRowIndex(null);
+                            setDragOverRowIndex(null);
+                          }}
+                          sx={{
+                            opacity: draggedRowIndex === idx ? 0.45 : 1,
+                            bgcolor: dragOverRowIndex === idx ? 'rgba(37, 99, 235, 0.08)' : 'inherit',
+                            borderTop: dragOverRowIndex === idx ? '2px solid #2563eb' : undefined,
+                            transition: 'background-color 0.15s ease',
+                          }}
+                        >
+                          <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Tooltip title="Drag to reorder sequence">
+                                <Box
+                                  sx={{
+                                    cursor: 'grab',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    color: '#94a3b8',
+                                    '&:hover': { color: '#1B4B8F' },
+                                    '&:active': { cursor: 'grabbing' },
+                                  }}
+                                >
+                                  <DragIndicatorIcon fontSize="small" />
+                                </Box>
+                              </Tooltip>
+                              <span>P{idx + 1}</span>
+                            </Box>
+                          </TableCell>
                           <TableCell>
                             <TextField
                               size="small"
@@ -317,6 +411,7 @@ export default function EditOfficePolygonPage() {
                               value={v.latitude}
                               onChange={(e) => handleVertexChange(idx, 'latitude', e.target.value)}
                               fullWidth
+                              slotProps={{ htmlInput: { step: 'any' } }}
                             />
                           </TableCell>
                           <TableCell>
@@ -326,6 +421,7 @@ export default function EditOfficePolygonPage() {
                               value={v.longitude}
                               onChange={(e) => handleVertexChange(idx, 'longitude', e.target.value)}
                               fullWidth
+                              slotProps={{ htmlInput: { step: 'any' } }}
                             />
                           </TableCell>
                           <TableCell align="right">
@@ -379,6 +475,8 @@ export default function EditOfficePolygonPage() {
                     width={480}
                     height={300}
                     probePoint={probePointForSvg}
+                    editable={true}
+                    onVertexDrag={handleVertexDrag}
                   />
                 </CardContent>
               </Card>

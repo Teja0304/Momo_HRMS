@@ -3,7 +3,9 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useAuth } from '../context/AuthContext';
 import AdminHomePage from '../pages/AdminHomePage';
 import HrHomePage from '../pages/HrHomePage';
+import HrEmployeeReportPage from '../pages/HrEmployeeReportPage';
 import LoginPage from '../pages/LoginPage';
+
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import UnauthorizedPage from '../pages/UnauthorizedPage';
 import EmployeeListPage from '../features/employees/pages/EmployeeListPage';
@@ -45,37 +47,43 @@ export function AppRoutes() {
       </Route>
 
       <Route element={<ProtectedRoute />}>
-        {/* Employee shortcut redirects to Attendance dashboard */}
+        {/* Dashboard and employee shortcut redirects */}
+        <Route path={PATHS.dashboard} element={<HomeRedirect />} />
         <Route path={PATHS.employee} element={<Navigate to={PATHS.attendance} replace />} />
 
-        {/* Attendance (Personal dashboard, check-in/out, history, details) accessible to all authenticated staff */}
-        <Route element={<RoleBasedRoute allowedRoles={['ADMIN', 'HR', 'EMPLOYEE']} />}>
+        {/* Personal attendance self-punch routes accessible to Employee only */}
+        <Route element={<RoleBasedRoute allowedRoles={['EMPLOYEE']} />}>
           <Route path={PATHS.attendance} element={<AttendanceDashboardPage />} />
           <Route path={PATHS.attendanceHistory} element={<AttendanceHistoryPage />} />
           <Route path={PATHS.attendanceDetailsPattern} element={<AttendanceDetailsPage />} />
+        </Route>
+
+        {/* Notifications accessible to all authenticated roles (Admin, HR, Employee) */}
+        <Route element={<RoleBasedRoute allowedRoles={['ADMIN', 'HR', 'EMPLOYEE']} />}>
           <Route path={PATHS.notifications} element={<NotificationListPage />} />
           <Route path={PATHS.notificationHistory} element={<NotificationHistoryPage />} />
         </Route>
 
-        <Route element={<RoleBasedRoute allowedRoles={['HR']} />}>
-          <Route path={PATHS.hr} element={<HrHomePage />} />
-        </Route>
-        <Route element={<RoleBasedRoute allowedRoles={['ADMIN']} />}>
-          <Route path={PATHS.admin} element={<AdminHomePage />} />
-        </Route>
-
-        {/* Employee Management accessible by both ADMIN and HR roles */}
+        {/* Management routes accessible to Admin and HR */}
         <Route element={<RoleBasedRoute allowedRoles={['ADMIN', 'HR']} />}>
           <Route path={PATHS.employees} element={<EmployeeListPage />} />
+          <Route path={PATHS.employeeDetailsPattern} element={<EmployeeDetailsPage />} />
+          <Route path={PATHS.attendanceReports} element={<AttendanceReportsPage />} />
+        </Route>
+
+        {/* HR & Management Dashboard routes */}
+        <Route element={<RoleBasedRoute allowedRoles={['HR', 'ADMIN']} />}>
+          <Route path={PATHS.hr} element={<HrHomePage />} />
+          <Route path={PATHS.hrEmployeeReportPattern} element={<HrEmployeeReportPage />} />
+        </Route>
+
+
+        {/* ADMIN-only routes (Geofences & Office setup, Employee creation, bulk import, profile edit) */}
+        <Route element={<RoleBasedRoute allowedRoles={['ADMIN']} />}>
+          <Route path={PATHS.admin} element={<AdminHomePage />} />
           <Route path={PATHS.addEmployee} element={<AddEmployeePage />} />
           <Route path={PATHS.importEmployees} element={<EmployeeImportPage />} />
-          <Route path={PATHS.employeeDetailsPattern} element={<EmployeeDetailsPage />} />
           <Route path={PATHS.editEmployeePattern} element={<EditEmployeePage />} />
-
-          {/* Attendance Management Reports */}
-          <Route path={PATHS.attendanceReports} element={<AttendanceReportsPage />} />
-
-          {/* Workplace Geofences Management */}
           <Route path={PATHS.geofences} element={<GeofenceListPage />} />
           <Route path={PATHS.addGeofence} element={<AddOfficePage />} />
           <Route path={PATHS.editGeofencePattern} element={<EditOfficePolygonPage />} />

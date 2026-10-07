@@ -46,6 +46,24 @@ export class AttendanceSessionResponseDto {
   @ApiProperty({ description: 'Live-computed, not just the stored column' })
   totalWorkingSeconds: number;
 
+  @ApiProperty({ description: 'Live-computed total paused duration in seconds' })
+  totalPausedSeconds: number;
+
+  @ApiProperty({ description: 'Regular working seconds without special conditions', required: false })
+  regularWorkingSeconds?: number;
+
+  @ApiProperty({ description: 'Approved special condition additional working seconds', required: false })
+  specialConditionSeconds?: number;
+
+  @ApiProperty({ description: 'Whether special condition hours have been approved for this session/date', required: false })
+  hasSpecialCondition?: boolean;
+
+  @ApiProperty({ description: 'Status of special condition (e.g. APPROVED)', required: false })
+  specialConditionStatus?: string;
+
+  @ApiProperty({ description: 'Reason for approved special condition', required: false })
+  specialConditionReason?: string;
+
   @ApiProperty()
   createdAt: Date;
 
@@ -78,6 +96,12 @@ export class TodayAttendanceResponseDto {
 
   @ApiProperty({ description: 'Sum of totalWorkingSeconds across all sessions today' })
   totalWorkingSecondsToday: number;
+
+  @ApiProperty({ description: 'Regular working seconds today without special conditions', required: false })
+  totalRegularWorkingSecondsToday?: number;
+
+  @ApiProperty({ description: 'Approved special condition seconds today', required: false })
+  totalSpecialConditionSecondsToday?: number;
 
   @ApiProperty({ description: 'Whether the employee has an active (WORKING/PAUSED) session right now' })
   hasActiveSession: boolean;

@@ -74,12 +74,31 @@ export default function AttendanceReportsPage() {
 
   const onTimeRate = totalSessions > 0 ? Math.round((onTimeCount / totalSessions) * 100) : 0;
   const totalSeconds = sessions.reduce((acc, s) => acc + s.totalWorkingSeconds, 0);
+  const totalRegularSeconds = sessions.reduce(
+    (acc, s) => acc + (s.regularWorkingSeconds ?? (s.totalWorkingSeconds - (s.specialConditionSeconds || 0))),
+    0,
+  );
+  const totalSpecialSeconds = sessions.reduce((acc, s) => acc + (s.specialConditionSeconds || 0), 0);
   const totalHours = (totalSeconds / 3600).toFixed(1);
+  const totalRegularHours = (totalRegularSeconds / 3600).toFixed(1);
+  const totalSpecialHours = (totalSpecialSeconds / 3600).toFixed(1);
   const avgHours = totalSessions > 0 ? (totalSeconds / totalSessions / 3600).toFixed(1) : '0';
 
   const handleExportCsv = () => {
     if (sessions.length === 0) return;
-    const headers = ['Date', 'Status', 'Punctuality', 'CheckIn', 'CheckOut', 'WorkingHours', 'PausedHours'];
+    const headers = [
+      'Date',
+      'Status',
+      'Punctuality',
+      'CheckIn',
+      'CheckOut',
+      'TotalWorkingHours',
+      'RegularWorkingHours',
+      'SpecialConditionHours',
+      'SpecialConditionStatus',
+      'SpecialConditionReason',
+      'PausedHours',
+    ];
     const rows = sessions.map((s) => [
       s.attendanceDate,
       s.status,
@@ -87,6 +106,10 @@ export default function AttendanceReportsPage() {
       s.checkInAt,
       s.checkOutAt ?? '',
       (s.totalWorkingSeconds / 3600).toFixed(2),
+      ((s.regularWorkingSeconds ?? (s.totalWorkingSeconds - (s.specialConditionSeconds || 0))) / 3600).toFixed(2),
+      ((s.specialConditionSeconds || 0) / 3600).toFixed(2),
+      s.hasSpecialCondition ? (s.specialConditionStatus || 'HR Approved') : 'N/A',
+      s.hasSpecialCondition ? `"${(s.specialConditionReason || '').replace(/"/g, '""')}"` : 'N/A',
       (s.totalPausedSeconds / 3600).toFixed(2),
     ]);
     const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -203,8 +226,12 @@ export default function AttendanceReportsPage() {
                 <Typography variant="h4" sx={{ fontWeight: 800, fontFamily: 'monospace' }}>
                   {totalHours}h
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Cumulative hours worked
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                  {Number(totalSpecialHours) > 0 ? (
+                    <>Reg: {totalRegularHours}h | Special: +{totalSpecialHours}h</>
+                  ) : (
+                    'Cumulative hours worked'
+                  )}
                 </Typography>
               </CardContent>
             </Card>

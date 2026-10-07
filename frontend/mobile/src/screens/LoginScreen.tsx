@@ -15,6 +15,8 @@ import { loginSchema } from '../schemas/authSchemas';
 import type { LoginFormValues } from '../schemas/authSchemas';
 import { palette } from '../theme/theme';
 import { getErrorMessage } from '../utils/errors';
+import { API_URL } from '../config/env';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
   const { login, notice } = useAuth();
@@ -47,7 +49,10 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <AppHeader title="Welcome Back" subtitle="Login to continue" />
+          <AppHeader
+            title="Welcome to Momo HRMS"
+            subtitle="Enter the email or employee ID and password sent to your email"
+          />
 
           <ErrorMessage message={notice} variant="info" />
           <ErrorMessage message={submitError} />
@@ -57,7 +62,8 @@ export default function LoginScreen() {
             name="email"
             render={({ field: { onChange, onBlur, value } }) => (
               <AppTextInput
-                label="Email"
+                label="Email or Employee ID"
+                placeholder="employee@company.com or EMP-1234"
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -65,8 +71,7 @@ export default function LoginScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="email"
-                textContentType="emailAddress"
-                left={<TextInput.Icon icon="email-outline" />}
+                left={<TextInput.Icon icon="account-outline" />}
                 errorText={errors.email?.message}
               />
             )}
@@ -78,31 +83,35 @@ export default function LoginScreen() {
             render={({ field: { onChange, onBlur, value } }) => (
               <PasswordInput
                 label="Password"
+                placeholder="Temporary or personal password"
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
                 autoComplete="password"
                 textContentType="password"
-                // The checklist below already explains what is wrong.
+                errorText={errors.password?.message}
               />
             )}
           />
-
-          <PasswordRequirements password={password} />
 
           <AppButton
             onPress={onSubmit}
             loading={isSubmitting}
             disabled={!isValid || isSubmitting}
-            accessibilityLabel="Log in"
+            accessibilityLabel="Login"
           >
-            Log in
+            Login
           </AppButton>
 
           <View style={styles.helpBox}>
             <Text style={styles.help}>
               Forgot your password? Ask your administrator to reset it for you.
             </Text>
+          </View>
+
+          <View style={styles.serverInfoBox}>
+            <MaterialCommunityIcons name="server-network" size={13} color={palette.muted} />
+            <Text style={styles.serverInfoText}>{API_URL}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -116,4 +125,21 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   helpBox: { marginTop: 20, alignItems: 'center' },
   help: { color: palette.muted, fontSize: 13, textAlign: 'center' },
+  serverInfoBox: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  serverInfoText: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '500',
+  },
 });

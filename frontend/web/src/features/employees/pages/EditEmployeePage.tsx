@@ -15,6 +15,8 @@ import {
   fetchRoles,
   updateEmployee,
 } from '../../../services/employeeService';
+import { fetchOffices } from '../../geofence/services/geofenceService';
+import type { Office } from '../../geofence/types/geofence';
 import type {
   CreateEmployeePayload,
   Department,
@@ -31,6 +33,7 @@ export default function EditEmployeePage() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [offices, setOffices] = useState<Office[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -39,18 +42,24 @@ export default function EditEmployeePage() {
     if (!id) return;
     let mounted = true;
 
-    Promise.all([fetchEmployeeById(id), fetchActiveDepartments(), fetchRoles()])
-      .then(([empData, deptsData, rolesData]) => {
+    Promise.all([
+      fetchEmployeeById(id),
+      fetchActiveDepartments(),
+      fetchRoles(),
+      fetchOffices(),
+    ])
+      .then(([empData, deptsData, rolesData, officesData]) => {
         if (mounted) {
           setEmployee(empData);
           setDepartments(deptsData);
           setRoles(rolesData);
+          setOffices(Array.isArray(officesData) ? officesData : []);
         }
       })
       .catch((err) => {
         console.error('Failed to load employee for edit:', err);
         setServerError(
-          getErrorMessage(err, 'Unable to load employee details or department options.')
+          getErrorMessage(err, 'Unable to load employee details, departments, or office locations.')
         );
       })
       .finally(() => {
@@ -68,18 +77,24 @@ export default function EditEmployeePage() {
     setServerError(null);
 
     try {
-      // Update general profile fields
+      // Update employee profile details including office location
       await updateEmployee(id, {
         firstName: values.firstName,
         lastName: values.lastName,
         email: values.email,
+        personalEmail: values.personalEmail ? values.personalEmail.trim() : null,
         phone: values.phone,
         jobTitle: values.jobTitle,
         departmentId: values.departmentId,
+        dateOfJoining: values.dateOfJoining,
         dateOfBirth: values.dateOfBirth ? values.dateOfBirth : null,
         gender: values.gender ?? null,
         address: values.address?.trim() ? values.address.trim() : null,
         profilePhotoUrl: values.profilePhotoUrl?.trim() ? values.profilePhotoUrl.trim() : null,
+        officeLocationId: values.officeLocationId ?? null,
+        officeLocationName: values.officeLocationName ?? null,
+        primaryOfficeId: values.primaryOfficeId ?? null,
+        officeIds: values.officeIds ?? [],
       });
 
       setNotice(`Employee profile for "${values.firstName} ${values.lastName}" updated successfully.`);
@@ -130,12 +145,40 @@ export default function EditEmployeePage() {
     firstName: employee.firstName,
     lastName: employee.lastName,
     email: employee.email,
+    personalEmail: employee.personalEmail ?? '',
     phone: employee.phone,
     jobTitle: employee.jobTitle,
     departmentId: employee.department?.id ?? '',
     roleId: employee.role?.id ?? '',
-    dateOfJoining: employee.dateOfJoining,
-    dateOfBirth: employee.dateOfBirth ?? '',
+    officeLocationId:
+      employee.officeLocationId ??
+      employee.assignedOffice?.id ??
+      employee.assignedOffice?.code ??
+      employee.assignments?.find((a) => a.isPrimary)?.officeId ??
+      '',
+    officeLocationName:
+      employee.officeLocationName ??
+      employee.assignedOffice?.name ??
+      '',
+    primaryOfficeId:
+      employee.primaryOfficeId ??
+      employee.officeLocationId ??
+      employee.assignedOffice?.id ??
+      '',
+    officeIds:
+      employee.assignedOffices && employee.assignedOffices.length > 0
+        ? employee.assignedOffices.map((o) => o.id)
+        : employee.assignments && employee.assignments.length > 0
+        ? employee.assignments.map((a) => a.officeId)
+        : employee.officeLocationId
+        ? [employee.officeLocationId]
+        : [],
+    dateOfJoining: employee.dateOfJoining
+      ? (employee.dateOfJoining.includes('T') ? employee.dateOfJoining.slice(0, 10) : employee.dateOfJoining)
+      : new Date().toISOString().slice(0, 10),
+    dateOfBirth: employee.dateOfBirth
+      ? (employee.dateOfBirth.includes('T') ? employee.dateOfBirth.slice(0, 10) : employee.dateOfBirth)
+      : '',
     gender: employee.gender ?? undefined,
     address: employee.address ?? '',
     profilePhotoUrl: employee.profilePhotoUrl ?? '',
@@ -161,6 +204,7 @@ export default function EditEmployeePage() {
         initialValues={initialValues}
         departments={departments}
         roles={roles}
+        offices={offices}
         onSubmit={handleSubmit}
         onCancel={() => navigate(PATHS.employeeDetails(employee.id))}
         loading={submitting}

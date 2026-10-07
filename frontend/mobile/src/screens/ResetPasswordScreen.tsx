@@ -15,8 +15,10 @@ import { palette } from '../theme/theme';
 import { getErrorMessage } from '../utils/errors';
 
 export default function ResetPasswordScreen() {
-  const { resetPassword, logout } = useAuth();
+  const { user, resetPassword, logout } = useAuth();
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const displayName = user?.fullName?.split(' ')[0] || user?.email?.split('@')[0] || 'Employee';
 
   const {
     control,
@@ -36,8 +38,6 @@ export default function ResetPasswordScreen() {
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null);
     try {
-      // Resolves only after the backend CONFIRMED the change; the navigator
-      // then moves to the dashboard on its own. On failure we stay right here.
       await resetPassword(values.newPassword);
     } catch (error) {
       setSubmitError(getErrorMessage(error, 'Could not update your password. Please try again.'));
@@ -49,8 +49,8 @@ export default function ResetPasswordScreen() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <AppHeader
-            title="Create a New Password"
-            subtitle="For your account security, please update your password to continue."
+            title={`Welcome, ${displayName}!`}
+            subtitle="Your account has been created successfully. For security reasons, please create your new password before continuing."
           />
 
           <ErrorMessage message={submitError} />

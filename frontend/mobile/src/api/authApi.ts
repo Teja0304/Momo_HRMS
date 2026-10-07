@@ -3,6 +3,7 @@ import type { AuthResponse, AuthUser, BackendUser } from '../types/auth';
 import { toAuthUser } from '../utils/roles';
 import { api, refreshSession } from './client';
 import { getRefreshToken } from './tokenStorage';
+import { EMPLOYEE_API_URL } from '../config/env';
 
 /**
  * POST /auth/login          (public, rate limited: 5 tries / minute / IP+email)
@@ -12,8 +13,41 @@ import { getRefreshToken } from './tokenStorage';
  * Errors:   401 "Invalid credentials" (wrong email/password/inactive), 429 too many tries.
  */
 export async function loginUser(payload: { email: string; password: string }): Promise<AuthResponse> {
-  const { data } = await api.post<AuthResponse>('/auth/login', payload);
-  return data;
+  const trimmedIdentifier = (payload.email || '').trim();
+  const trimmedPassword = (payload.password || '').trim();
+
+  // Try direct login with provided identifier first
+  try {
+    const { data } = await api.post<AuthResponse>('/auth/login', {
+      email: trimmedIdentifier,
+      password: trimmedPassword,
+    });
+    return data;
+  } catch (initialErr) {
+    // If invalid credentials or non-company email/employee code was used, attempt identifier resolution
+    try {
+      const resolveRes = await axios.get<{
+        success: boolean;
+        data?: { found: boolean; officialEmail?: string };
+      }>(`${EMPLOYEE_API_URL}/employees/resolve-identifier`, {
+        params: { identifier: trimmedIdentifier },
+        timeout: 4000,
+      });
+
+      const resData = resolveRes.data?.data || (resolveRes.data as any);
+      if (resData?.found && resData.officialEmail && resData.officialEmail.toLowerCase() !== trimmedIdentifier.toLowerCase()) {
+        const retryRes = await api.post<AuthResponse>('/auth/login', {
+          email: resData.officialEmail,
+          password: trimmedPassword,
+        });
+        return retryRes.data;
+      }
+    } catch {
+      // If resolution fails or retry fails, throw initial error
+    }
+
+    throw initialErr;
+  }
 }
 
 /**
